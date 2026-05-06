@@ -1,102 +1,172 @@
+import { readFile } from "node:fs/promises";
 import { createOpenAI } from "@ai-sdk/openai";
-import { generateObject } from "ai";
+import { generateText, Output } from "ai";
+import YAML from "yaml";
 import { z } from "zod";
 
 // 1. Configure Vercel AI SDK to point to LM Studio
-const lmstudio = createOpenAI({
+const lm_studio = createOpenAI({
 	baseURL: "http://localhost:1234/v1",
-	apiKey: "not-needed-for-local", // LM Studio doesn't require an API key
+	apiKey: "not-needed-for-local",
 });
 
 // 2. Define the Structured Output Schema using Zod
-const CitySchema = z.object({
-	cities: z
-		.array(z.string())
+const city_schema = z.object({
+	city: z
+		.string()
 		.describe(
-			"List of extracted cities in their base nominative form (e.g. 'Ljubljana'). Empty array if none.",
+			"Exactly one extracted city or town in Slovenian nominative form (e.g. 'Ljubljana'). Use an empty string if no city is present.",
 		),
 });
 
-// 3. The Extraction Function
-async function extractCities(text: string) {
-	console.log("Robots are thinking...");
+// Type definitions matching your YAML/JSON structure
+type ArticleYaml = {
+	title?: string;
+	lead?: string;
+	paragraphs?: Array<string>;
+};
 
-	const { object } = await generateObject({
-		// Replace 'gemma-4' with the exact model identifier if your LM Studio requires it,
-		// or just leave it (LM Studio usually routes to the currently loaded model).
-		model: lmstudio("gemma-4"),
-		schema: CitySchema,
+type ArticleLoadResult = {
+	total_articles: number;
+	articles: string[];
+};
+
+/**
+ * 3. Improved Loading Function
+ * Reads the dataset, parses it, extracts the total article count,
+ * and slices the data based on `offset` and `size`.
+ */
+async function load_articles(
+	file_path: string | URL,
+	offset: number = 0,
+	size: number = 10,
+): Promise<ArticleLoadResult> {
+	const raw_text = await readFile(file_path, "utf8");
+	const parsed_yaml = YAML.parse(raw_text) as unknown;
+
+	// Support both a single article object or an array of articles
+	const article_list = Array.isArray(parsed_yaml)
+		? (parsed_yaml as ArticleYaml[])
+		: [parsed_yaml as ArticleYaml];
+
+	const total_articles = article_list.length;
+
+	// Apply pagination parameters
+	const sliced_articles = article_list.slice(offset, offset + size);
+
+	const mapped_articles = sliced_articles.map((article) => {
+		const parts = [
+			article.title,
+			article.lead,
+			...(article.paragraphs ?? []),
+		].filter(
+			(part): part is string =>
+				typeof part === "string" && part.trim().length > 0,
+		);
+
+		// Return combined text or empty string
+		return parts.length > 0 ? parts.join("\n\n") : "";
+	});
+
+	return {
+		total_articles,
+		articles: mapped_articles,
+	};
+}
+
+/**
+ * 4. The Extraction Function (Updated for AI SDK v6)
+ */
+async function extract_city(text: string) {
+	// Note: generateObject is deprecated! We now use generateText with `output: Output.object()`
+	const result = await generateText({
+		model: lm_studio("gemma-4"),
 		system: `You are an advanced NLP assistant specialized in Named Entity Recognition for the Slovenian language.
-Your task is to extract ONLY CITY AND TOWN names from the provided text.
+Your task is to extract exactly ONE CITY OR TOWN name from the provided text.
 
 CRITICAL RULES:
-1. ONLY extract cities or towns (e.g., Ljubljana, Kijev, Moskva).
+1. ONLY extract a city or town (e.g., Ljubljana, Kijev, Moskva).
 2. DO NOT extract countries (e.g., Slovenija, Ukrajina, ZDA, Rusija).
-3. DO NOT extract continents, rivers, or regions (e.g., Evropa, Sava, Sumska oblast).
-4. LEMMATIZATION: Return all extracted cities in their Slovenian NOMINATIVE (base) case. 
-   - If text says "v Kijevu", return "Kijev". 
+3. DO NOT extract continents, rivers, regions, or organizations (e.g., Evropa, Sava, Sumska oblast, Kremlj).
+4. LEMMATIZATION: Return the city in Slovenian NOMINATIVE (base) case.
+   - If text says "v Kijevu", return "Kijev".
    - If text says "iz Moskve", return "Moskva".
    - If text says "nad Brusljem", return "Bruselj".
-5. EDGE CASE: If there are absolutely no cities in the text, return an empty array[].
+5. If multiple cities appear, return the single most relevant city for the article.
+6. If a city name is ambiguous across countries, prefer the city in Slovenia.
+7. EDGE CASE: If there are absolutely no cities in the text, return an empty string.
 
 EXAMPLES:
 
 Input:
 "Včeraj so v Kijevu in Moskvi potekali protesti. Evropska unija in ZDA so opazovale. Predsednik se je vrnil v Slovenijo preko reke Dneper."
 Output:
-{ "cities": ["Kijev", "Moskva"] }
+{ "city": "Kijev" }
 
 Input:
 "Gospodarska rast se je umirila. Inflacija pada, kar je dobra novica za podjetja in državljane."
 Output:
-{ "cities":[] }
+{ "city": "" }
 `,
-		prompt: `Extract the cities from the following article text:\n\n${text}`,
-		// LM Studio handles structured outputs best when temperatures are low
+		prompt: `Extract one city from the following article text. If multiple cities are mentioned, choose the single most relevant one. If the city name is ambiguous, prefer the city in Slovenia. Return only a single city name or an empty string if none applies.\n\n${text}`,
+		output: Output.object({ schema: city_schema }), // <-- The new v6 standard
 		temperature: 0.1,
 	});
 
-	return object.cities;
+	// Vercel AI natively parses the response and maps it to `result.output`
+	return result.output.city;
 }
 
-// 4. Test it with the data you provided
-async function main() {
-	// Using a snippet from your mmc-1.txt file
-	const articleText = `
-    "Vojaška operacija proti Kijevu se nadaljuje," je novinarjem povedal tiskovni predstavnik Kremlja Dmitrij Peskov. 
-    Ukrajinski predsednik Volodimir Zelenski je na izrednem zasedanju Evropskega parlamenta v Bruslju poudaril, da je treba pritisniti na Moskvo.
-    Sodelovanje med Evropo in ZDA je ključno za čezatlantsko varnost, je v Varšavi dejal poljski zunanji minister.
-    Tudi v Londonu so napovedali novo vojaško pomoč Kijevu.
-    V napadu je bil uničen študentski dom v mestu Gluhiv, je sporočil Zelenski.
-    Nov napad se je zgodil, potem ko je bilo v ponedeljek v ruskem raketnem napadu na pristaniško mesto Odesa ubitih deset ljudi.
-    V ruskem napadu z brezpilotnimi letalniki na Sumsko oblast na severovzhodu Ukrajine je bilo ubitih najmanj osem ljudi.
-  `;
+/**
+ * 5. Main Execution Script
+ */
+async function run_extraction() {
+	const file_path = new URL("../assets/mmc-100.yaml", import.meta.url);
+	const current_offset = 0;
+	const batch_size = 10; // Process just the first article for testing
 
 	try {
-		const start = performance.now();
-		const cities = await extractCities(articleText);
-		const end = performance.now();
+		console.log(`📂 Loading articles...`);
 
-		console.log("\n✅ Extraction Complete!");
-		console.log(`⏱️  Time taken: ${((end - start) / 1000).toFixed(2)} seconds`);
-		console.log("🏙️  Extracted Cities:", cities);
+		const { total_articles, articles } = await load_articles(
+			file_path,
+			current_offset,
+			batch_size,
+		);
 
-		/* 
-      EXPECTED OUTPUT:[ 'Kijev', 'Bruselj', 'Moskva', 'Varšava', 'London', 'Gluhiv', 'Odesa' ]
-      
-      Notice what it should IGNORE based on our prompt rules:
-      - 'Evropa' (Continent)
-      - 'ZDA' (Country)
-      - 'Kremlja' (Building/Government)
-      - 'Sumska oblast' (Region)
-      - 'Ukrajine' (Country)
-    */
+		console.log(`📊 Found a total of ${total_articles} articles in dataset.`);
+		console.log(
+			`🚀 Processing batch (Offset: ${current_offset}, Size: ${batch_size})...\n`,
+		);
+
+		for (const [index, article_text] of articles.entries()) {
+			const global_index = current_offset + index + 1;
+
+			if (!article_text) {
+				console.log(`⚠️  Article ${global_index} is empty, skipping...`);
+				continue;
+			}
+
+			console.log(`--- Article ${global_index} ---`);
+			console.log(`${article_text.slice(0, 150)}...\n`);
+			console.log("🤖 AI is analyzing text...");
+
+			const start_time = performance.now();
+			const city = await extract_city(article_text);
+			const end_time = performance.now();
+
+			console.log("✅ Extraction Complete!");
+			console.log(
+				`⏱️  Time taken: ${((end_time - start_time) / 1000).toFixed(2)} seconds`,
+			);
+			console.log(`🏙️  Extracted City: "${city || "(none)"}"\n`);
+		}
 	} catch (error) {
 		console.error(
-			"Extraction failed. Check if LM Studio is running on port 1234.",
+			"❌ Extraction failed. Ensure LM Studio is running on port 1234.",
 			error,
 		);
 	}
 }
 
-main();
+run_extraction();
