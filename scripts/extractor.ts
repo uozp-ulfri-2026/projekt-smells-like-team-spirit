@@ -25,8 +25,8 @@ const extraction_schema = z.object({
 		"gospodarstvo",
 		"zdravje",
 		"okolje",
-		"gastronomija",
 		"turizem",
+		"gastronomija",
 		"drugo",
 	]),
 	country: z.string().nullable(),
@@ -59,6 +59,10 @@ type SavedExtraction = {
 	topic: ExtractionOutput["topic"];
 	country: string | null;
 	city: string | null;
+};
+
+type ErrorEntry = ArticleCleaned & {
+	error: string;
 };
 
 async function load_articles(
@@ -158,9 +162,10 @@ async function appendSavedResult(
 }
 
 async function extract_article_data(article: LoadedArticle) {
-	const result = await generateText({
-		model: lm_studio("gemma-4"),
-		system: `You are an information extraction system for Slovenian MMC news articles.
+	try {
+		const result = await generateText({
+			model: lm_studio("gemma-4"),
+			system: `You are an information extraction system for Slovenian MMC news articles.
 
 Your task is to extract only:
 1. the main topic of the article,
@@ -192,7 +197,7 @@ Topic rules:
 - If it is about climate, pollution, ecology, environmental protection or nature conservation, use okolje.
 - If it is about travel, destinations, holidays, tourists or tourism, use turizem.
 - If none of the topics fit, use drugo. 
-- I repeat. Do not under any circumstances invent a topic that is not supported. If you are not sure, use drugo.
+- I repeat. Do not under any circumstances invent a topic that is not supported. If you are not sure, use drugo. Be careful not to make typos because we are running a vaildation check on the received topic.
 
 Location rules:
 - Extract the country and place where the main event happened.
@@ -269,12 +274,26 @@ Output:
 	"country": null,
 	"city": null
 }`,
-		prompt: `Extract the main topic, country and place from this Slovenian MMC article. Return only the required JSON object.\n\n${article.text}`,
-		output: Output.object({ schema: extraction_schema }),
-		temperature: 0.1,
-	});
+			prompt: `Extract the main topic, country and place from this Slovenian MMC article. Return only the required JSON object.\n\n${article.text}`,
+			output: Output.text(),
+			temperature: 0.1,
+		});
 
-	return result.output;
+		// Parse the raw text response
+		const jsonStr = result.text.trim();
+		const parsed = JSON.parse(jsonStr);
+		const validated = extraction_schema.parse(parsed);
+		return validated;
+	} catch (error) {
+		let detailedError = error instanceof Error ? error.message : String(error);
+		
+		// If we got a validation error after parsing JSON, include the raw response
+		if (error instanceof Error && error.message.includes("Invalid enum value")) {
+			detailedError = `LLM returned invalid value. Check the raw response in the article data.`;
+		}
+		
+		throw new Error(detailedError);
+	}
 }
 
 async function run_extraction() {
@@ -341,21 +360,28 @@ async function run_extraction() {
 				);
 				console.log(`🏙️  Extracted City: "${extracted.city || "(none)"}"\n`);
 			} catch (extractError) {
+				const errorMessage = extractError instanceof Error ? extractError.message : String(extractError);
 				console.error(`❌ Error on _id ${article._id}:`, extractError);
 				const errorPath = getErrorPathForIndex(runIndex);
 				await mkdir(new URL("../assets/ai/errors/", import.meta.url), {
 					recursive: true,
 				});
 
-				let ids: string[] = [];
+				let errors: ErrorEntry[] = [];
 				if (existsSync(errorPath)) {
 					const existing = await readFile(errorPath, "utf8");
-					ids = JSON.parse(existing) as string[];
+					errors = JSON.parse(existing) as ErrorEntry[];
 				}
 
-				if (!ids.includes(article._id)) {
-					ids.push(article._id);
-					await writeFile(errorPath, JSON.stringify(ids, null, 2), "utf8");
+				const errorExists = errors.some((e) => e._id === article._id);
+				if (!errorExists) {
+					const errorEntry: ErrorEntry = {
+						...article,
+						_id: article._id,
+						error: errorMessage,
+					};
+					errors.push(errorEntry);
+					await writeFile(errorPath, JSON.stringify(errors, null, 2), "utf8");
 				}
 			}
 		}
