@@ -121,7 +121,7 @@ Output:
  * 5. Main Execution Script
  */
 async function run_extraction() {
-	const file_path = new URL("../assets/mmc-100.yaml", import.meta.url);
+	const input_path = process.argv[2] || new URL("../assets/mmc-100.yaml", import.meta.url);
 	const current_offset = 0;
 	const batch_size = 10; // Process just the first article for testing
 
@@ -129,7 +129,7 @@ async function run_extraction() {
 		console.log(`📂 Loading articles...`);
 
 		const { total_articles, articles } = await load_articles(
-			file_path,
+			input_path,
 			current_offset,
 			batch_size,
 		);
