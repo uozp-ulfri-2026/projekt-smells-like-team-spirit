@@ -62,7 +62,7 @@ type SavedExtraction = {
 async function load_articles(
 	file_path: string | URL,
 	offset: number = 0,
-	size: number = 10,
+	size?: number,
 ): Promise<ArticleLoadResult> {
 	const raw_text = await readFile(file_path, "utf8");
 	const parsed_yaml = YAML.parse(raw_text) as unknown;
@@ -72,7 +72,10 @@ async function load_articles(
 		: [parsed_yaml as ArticleCleaned];
 
 	const total_articles = article_list.length;
-	const sliced_articles = article_list.slice(offset, offset + size);
+	const sliced_articles =
+		typeof size === "number"
+			? article_list.slice(offset, offset + size)
+			: article_list.slice(offset);
 
 	const mapped_articles = sliced_articles.map((article, index) => {
 		const id = String(article._id ?? offset + index + 1);
@@ -267,7 +270,6 @@ async function run_extraction() {
 		? process.argv[2]
 		: new URL("../assets/cleaned/mmc-100.json", import.meta.url);
 	const current_offset = 0;
-	const batch_size = 10;
 
 	try {
 		console.log(`📂 Loading articles...`);
@@ -275,12 +277,11 @@ async function run_extraction() {
 		const { total_articles, articles } = await load_articles(
 			file_path,
 			current_offset,
-			batch_size,
 		);
 
 		console.log(`📊 Found a total of ${total_articles} articles in dataset.`);
 		console.log(
-			`🚀 Processing batch (Offset: ${current_offset}, Size: ${batch_size})...\n`,
+			`Processing all articles (Offset: ${current_offset}, Count: ${articles.length})...\n`,
 		);
 
 		const outputPath = getNextOutputPath();
