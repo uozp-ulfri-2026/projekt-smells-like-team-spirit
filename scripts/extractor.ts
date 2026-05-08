@@ -162,9 +162,10 @@ async function appendSavedResult(
 }
 
 async function extract_article_data(article: LoadedArticle) {
-	const result = await generateText({
-		model: lm_studio("gemma-4"),
-		system: `You are an information extraction system for Slovenian MMC news articles.
+	try {
+		const result = await generateText({
+			model: lm_studio("gemma-4"),
+			system: `You are an information extraction system for Slovenian MMC news articles.
 
 Your task is to extract only:
 1. the main topic of the article,
@@ -273,12 +274,26 @@ Output:
 	"country": null,
 	"city": null
 }`,
-		prompt: `Extract the main topic, country and place from this Slovenian MMC article. Return only the required JSON object.\n\n${article.text}`,
-		output: Output.object({ schema: extraction_schema }),
-		temperature: 0.1,
-	});
+			prompt: `Extract the main topic, country and place from this Slovenian MMC article. Return only the required JSON object.\n\n${article.text}`,
+			output: Output.text(),
+			temperature: 0.1,
+		});
 
-	return result.output;
+		// Parse the raw text response
+		const jsonStr = result.text.trim();
+		const parsed = JSON.parse(jsonStr);
+		const validated = extraction_schema.parse(parsed);
+		return validated;
+	} catch (error) {
+		let detailedError = error instanceof Error ? error.message : String(error);
+		
+		// If we got a validation error after parsing JSON, include the raw response
+		if (error instanceof Error && error.message.includes("Invalid enum value")) {
+			detailedError = `LLM returned invalid value. Check the raw response in the article data.`;
+		}
+		
+		throw new Error(detailedError);
+	}
 }
 
 async function run_extraction() {
