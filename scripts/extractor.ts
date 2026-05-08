@@ -154,19 +154,6 @@ Output format:
   "kraj": "..."
 }
 
-
-EXAMPLES:
-
-Input:
-"Včeraj so v Kijevu in Moskvi potekali protesti. Evropska unija in ZDA so opazovale. Predsednik se je vrnil v Slovenijo preko reke Dneper."
-Output:
-{ "city": "Kijev" }
-
-Input:
-"Gospodarska rast se je umirila. Inflacija pada, kar je dobra novica za podjetja in državljane."
-Output:
-{ "city": "" }
- 
 Examples:
 
 Input:
@@ -225,7 +212,7 @@ Output:
 }
 
 async function run_extraction() {
-	const input_path = process.argv[2] || new URL("../assets/mmc-100.yaml", import.meta.url);
+	const file_path = new URL("../assets/cleaned/mmc-100.json", import.meta.url);
 	const current_offset = 0;
 	const batch_size = 10;
 
@@ -233,7 +220,7 @@ async function run_extraction() {
 		console.log(`📂 Loading articles...`);
 
 		const { total_articles, articles } = await load_articles(
-			input_path,
+			file_path,
 			current_offset,
 			batch_size,
 		);
@@ -242,6 +229,9 @@ async function run_extraction() {
 		console.log(
 			`🚀 Processing batch (Offset: ${current_offset}, Size: ${batch_size})...\n`,
 		);
+
+		const batch_start_time = performance.now();
+		let processed_articles = 0;
 
 		for (const [index, article] of articles.entries()) {
 			const global_index = current_offset + index + 1;
@@ -258,6 +248,7 @@ async function run_extraction() {
 			const start_time = performance.now();
 			const extracted = await extract_article_data(article);
 			const end_time = performance.now();
+			processed_articles += 1;
 
 			console.log("✅ Extraction Complete!");
 			console.log(
@@ -268,6 +259,11 @@ async function run_extraction() {
 			console.log(`🌍 Extracted Country: "${extracted.drzava || "(none)"}"`);
 			console.log(`🏙️  Extracted Place: "${extracted.kraj || "(none)"}"\n`);
 		}
+
+		const batch_end_time = performance.now();
+		console.log(
+			`Total time for ${processed_articles} articles: ${((batch_end_time - batch_start_time) / 1000).toFixed(2)} seconds`,
+		);
 	} catch (error) {
 		console.error(
 			"❌ Extraction failed. Ensure LM Studio is running on port 1234.",

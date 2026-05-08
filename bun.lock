@@ -29,10 +29,7 @@
         "@types/react": "^19.2.14",
         "@types/react-dom": "^19.2.3",
         "@vitejs/plugin-react": "^5.2.0",
-<<<<<<< HEAD
-=======
         "bun-types": "^1.3.13",
->>>>>>> 37855fa7cab40403771f4b3e3757998c62d27f83
         "tailwindcss": "^4.2.2",
         "tsx": "^4.21.0",
         "typescript": "^6.0.3",
