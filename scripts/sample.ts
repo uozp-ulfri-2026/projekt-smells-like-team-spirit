@@ -2,7 +2,6 @@ import { readFile, writeFile, mkdir } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
-import YAML from "yaml";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -10,7 +9,7 @@ const __dirname = dirname(__filename);
 const SAMPLE_SIZE = 1000;
 
 async function getNextSampleIndex(): Promise<number> {
-	const cleaned_dir = join(__dirname, "..", "assets", "cleaned");
+	const cleaned_dir = join(__dirname, "..", "assets", "cleaned", "sampled");
 	
 	if (!existsSync(cleaned_dir)) {
 		return 0;
@@ -39,17 +38,12 @@ function getRandomElements<T>(array: T[], count: number): T[] {
 }
 
 async function run_sampling(): Promise<void> {
-	const input_file = process.argv[2];
-
-	if (!input_file) {
-		console.error("Usage: bun scripts/sample.ts <input-file>");
-		process.exit(1);
-	}
+	const input_file = process.argv[2] || join(__dirname, "..", "assets", "cleaned", "mmc.json");
 
 	try {
 		console.log(`Reading ${input_file}...`);
 		const raw_text = await readFile(input_file, "utf8");
-		const parsed = YAML.parse(raw_text) as unknown;
+		const parsed = JSON.parse(raw_text) as unknown;
 
 		const articles = Array.isArray(parsed) ? parsed : [parsed];
 		console.log(`Loaded ${articles.length} articles`);
@@ -59,7 +53,7 @@ async function run_sampling(): Promise<void> {
 
 		const nextIndex = await getNextSampleIndex();
 		const indexStr = String(nextIndex).padStart(2, "0");
-		const output_dir = join(__dirname, "..", "assets", "cleaned");
+		const output_dir = join(__dirname, "..", "assets", "cleaned", "sampled");
 		const output_file = join(output_dir, `mmc-sample-${indexStr}.json`);
 
 		await mkdir(output_dir, { recursive: true });
