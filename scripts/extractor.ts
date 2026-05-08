@@ -172,14 +172,16 @@ Do not extract all mentioned countries or places.
 Extract only the location of the main event described in the article.
 
 Allowed topics are only:
-politika, vojna_in_konflikti, naravne_nesrece, nesrece_in_kriminal, sport, kultura, zabava, tehnologija, gospodarstvo, zdravje, okolje, turizem, drugo.
+politika, vojna_in_konflikti, naravne_nesrece, prometne_nesrece, kriminal, sport, kultura, zabava, tehnologija, gospodarstvo, zdravje, okolje, turizem, gastronomija,drugo.
 
 Topic rules:
 - Choose the topic based on the main event of the article, not based on random mentioned words.
 - If the article is mainly about government, elections, laws, parliament, diplomacy, presidents or ministers, use politika.
 - If it is about war, military attacks, armed conflict, occupation, weapons or soldiers, use vojna_in_konflikti.
 - If it is about earthquakes, floods, storms, wildfires or weather disasters, use naravne_nesrece.
-- If it is about murders, traffic accidents, police, crime, trials or courts, use nesrece_in_kriminal.
+- If it is about murders, police, crime, trials or courts, use kriminal.
+- If it is about traffic accidents, car crashes, road incidents or transportation disasters, use prometne_nesrece.
+- If it is about food, restaurants, cooking or culinary arts, use gastronomija.
 - If it is about sports competitions, teams, athletes or matches, use sport.
 - If it is about art, books, theatre, museums, exhibitions, festivals or film as art, use kultura.
 - If it is about celebrities, show business, TV shows, popular music or entertainment, use zabava.
@@ -188,7 +190,8 @@ Topic rules:
 - If it is about diseases, hospitals, medicine, treatment or public health, use zdravje.
 - If it is about climate, pollution, ecology, environmental protection or nature conservation, use okolje.
 - If it is about travel, destinations, holidays, tourists or tourism, use turizem.
-- If none of the topics fit, use drugo.
+- If none of the topics fit, use drugo. 
+- I repeat. Do not under any circumstances invent a topic that is not supported. If you are not sure, use drugo.
 
 Location rules:
 - Extract the country and place where the main event happened.
@@ -201,6 +204,8 @@ Location rules:
 - If the place cannot be determined, set "kraj" to null.
 - Return country and place names in Slovenian when possible, for example "Nemčija", "Avstrija", "Združene države Amerike", "Ukrajina".
 - Be careful about typos in your output. The country and place names should be correct and properly spelled.
+- Make sure that the city is actually in the mentioned country. Do not mismatch them.
+- If you have infered the city, make sure to also return the country. Try not to return a city without a country. If you are not sure about the city, it is better to return only the country.
 
 Return only a valid JSON object.
 Do not return a JSON array.
