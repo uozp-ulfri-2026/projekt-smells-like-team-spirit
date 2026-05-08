@@ -16,7 +16,8 @@ const extraction_schema = z.object({
 		"politika",
 		"vojna_in_konflikti",
 		"naravne_nesrece",
-		"nesrece_in_kriminal",
+		"prometne_nesrece",
+		"kriminal",
 		"sport",
 		"kultura",
 		"zabava",
@@ -24,6 +25,7 @@ const extraction_schema = z.object({
 		"gospodarstvo",
 		"zdravje",
 		"okolje",
+		"gastronomija",
 		"turizem",
 		"drugo",
 	]),
@@ -54,7 +56,6 @@ type ExtractionOutput = z.infer<typeof extraction_schema>;
 
 type SavedExtraction = {
 	_id: string;
-	uid: string;
 	topic: ExtractionOutput["topic"];
 	country: string | null;
 	city: string | null;
@@ -107,8 +108,8 @@ async function load_articles(
 	};
 }
 
-function getNextOutputPath(): string {
-	const outDir = new URL("../assets/ai/", import.meta.url);
+function getNextRunIndex(): number {
+	const outDir = new URL("../assets/ai/outputs/", import.meta.url);
 	let index = 0;
 	while (
 		existsSync(
@@ -117,8 +118,24 @@ function getNextOutputPath(): string {
 	) {
 		index += 1;
 	}
+	return index;
+}
+
+function getOutputPathForIndex(index: number): string {
 	return fileURLToPath(
-		new URL(`output${String(index).padStart(2, "0")}.json`, outDir),
+		new URL(
+			`output${String(index).padStart(2, "0")}.json`,
+			new URL("../assets/ai/outputs/", import.meta.url),
+		),
+	);
+}
+
+function getErrorPathForIndex(index: number): string {
+	return fileURLToPath(
+		new URL(
+			`errors${String(index).padStart(2, "0")}.json`,
+			new URL("../assets/ai/errors/", import.meta.url),
+		),
 	);
 }
 
@@ -126,7 +143,9 @@ async function appendSavedResult(
 	outputPath: string,
 	entry: SavedExtraction,
 ): Promise<void> {
-	await mkdir(new URL("../assets/ai/", import.meta.url), { recursive: true });
+	await mkdir(new URL("../assets/ai/outputs/", import.meta.url), {
+		recursive: true,
+	});
 
 	let results: SavedExtraction[] = [];
 	if (existsSync(outputPath)) {
@@ -136,24 +155,6 @@ async function appendSavedResult(
 
 	results.push(entry);
 	await writeFile(outputPath, JSON.stringify(results, null, 2), "utf8");
-}
-
-async function appendErrorId(_id: string): Promise<void> {
-	const errorPath = fileURLToPath(
-		new URL("../assets/ai/error-responses.json", import.meta.url),
-	);
-	await mkdir(new URL("../assets/ai/", import.meta.url), { recursive: true });
-
-	let ids: string[] = [];
-	if (existsSync(errorPath)) {
-		const existing = await readFile(errorPath, "utf8");
-		ids = JSON.parse(existing) as string[];
-	}
-
-	if (!ids.includes(_id)) {
-		ids.push(_id);
-		await writeFile(errorPath, JSON.stringify(ids, null, 2), "utf8");
-	}
 }
 
 async function extract_article_data(article: LoadedArticle) {
@@ -203,9 +204,10 @@ Location rules:
 - If the country cannot be determined, set "drzava" to null.
 - If the place cannot be determined, set "kraj" to null.
 - Return country and place names in Slovenian when possible, for example "Nemčija", "Avstrija", "Združene države Amerike", "Ukrajina".
-- Be careful about typos in your output. The country and place names should be correct and properly spelled.
+- Be careful about typos in your output. The country and place names should be correct and properly spelled. Especially you sometimes output "Kitaja" instead of "Kitajska".
 - Make sure that the city is actually in the mentioned country. Do not mismatch them.
-- If you have infered the city, make sure to also return the country. Try not to return a city without a country. If you are not sure about the city, it is better to return only the country.
+- If you have infered the city, make sure to also return the country. Do not return a city without a country. If you are not sure about the city, it is better to return only the country.
+
 
 Return only a valid JSON object.
 Do not return a JSON array.
@@ -294,7 +296,8 @@ async function run_extraction() {
 			`Processing all articles (Offset: ${current_offset}, Count: ${articles.length})...\n`,
 		);
 
-		const outputPath = getNextOutputPath();
+		const runIndex = getNextRunIndex();
+		const outputPath = getOutputPathForIndex(runIndex);
 		console.log(`📝 Output file: ${outputPath}`);
 
 		const batch_start_time = performance.now();
@@ -320,7 +323,6 @@ async function run_extraction() {
 
 				const saved: SavedExtraction = {
 					_id: article._id,
-					uid: article._id,
 					topic: extracted.topic,
 					country: extracted.country,
 					city: extracted.city,
@@ -340,7 +342,21 @@ async function run_extraction() {
 				console.log(`🏙️  Extracted City: "${extracted.city || "(none)"}"\n`);
 			} catch (extractError) {
 				console.error(`❌ Error on _id ${article._id}:`, extractError);
-				await appendErrorId(article._id);
+				const errorPath = getErrorPathForIndex(runIndex);
+				await mkdir(new URL("../assets/ai/errors/", import.meta.url), {
+					recursive: true,
+				});
+
+				let ids: string[] = [];
+				if (existsSync(errorPath)) {
+					const existing = await readFile(errorPath, "utf8");
+					ids = JSON.parse(existing) as string[];
+				}
+
+				if (!ids.includes(article._id)) {
+					ids.push(article._id);
+					await writeFile(errorPath, JSON.stringify(ids, null, 2), "utf8");
+				}
 			}
 		}
 
