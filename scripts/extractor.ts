@@ -4,38 +4,51 @@ import { generateText, Output } from "ai";
 import YAML from "yaml";
 import { z } from "zod";
 
-// 1. Configure Vercel AI SDK to point to LM Studio
 const lm_studio = createOpenAI({
 	baseURL: "http://localhost:1234/v1",
 	apiKey: "not-needed-for-local",
 });
 
-// 2. Define the Structured Output Schema using Zod
-const city_schema = z.object({
-	city: z
-		.string()
-		.describe(
-			"Exactly one extracted city or town in Slovenian nominative form (e.g. 'Ljubljana'). Use an empty string if no city is present.",
-		),
+const extraction_schema = z.object({
+	_uid: z.string(),
+	tema: z.enum([
+		"politika",
+		"vojna_in_konflikti",
+		"naravne_nesrece",
+		"nesrece_in_kriminal",
+		"sport",
+		"kultura",
+		"zabava",
+		"tehnologija",
+		"gospodarstvo",
+		"zdravje",
+		"okolje",
+		"turizem",
+		"drugo",
+	]),
+	drzava: z.string().nullable(),
+	kraj: z.string().nullable(),
 });
 
-// Type definitions matching your YAML/JSON structure
 type ArticleYaml = {
+	_uid?: string | number;
 	title?: string;
 	lead?: string;
 	paragraphs?: Array<string>;
+	keywords?: Array<string>;
+	gpt_keywords?: Array<string>;
+};
+
+type LoadedArticle = {
+	_uid: string;
+	text: string;
 };
 
 type ArticleLoadResult = {
 	total_articles: number;
-	articles: string[];
+	articles: LoadedArticle[];
 };
 
-/**
- * 3. Improved Loading Function
- * Reads the dataset, parses it, extracts the total article count,
- * and slices the data based on `offset` and `size`.
- */
 async function load_articles(
 	file_path: string | URL,
 	offset: number = 0,
@@ -44,28 +57,35 @@ async function load_articles(
 	const raw_text = await readFile(file_path, "utf8");
 	const parsed_yaml = YAML.parse(raw_text) as unknown;
 
-	// Support both a single article object or an array of articles
 	const article_list = Array.isArray(parsed_yaml)
 		? (parsed_yaml as ArticleYaml[])
 		: [parsed_yaml as ArticleYaml];
 
 	const total_articles = article_list.length;
-
-	// Apply pagination parameters
 	const sliced_articles = article_list.slice(offset, offset + size);
 
-	const mapped_articles = sliced_articles.map((article) => {
-		const parts = [
-			article.title,
-			article.lead,
-			...(article.paragraphs ?? []),
-		].filter(
-			(part): part is string =>
-				typeof part === "string" && part.trim().length > 0,
-		);
+	const mapped_articles = sliced_articles.map((article, index) => {
+		const uid = String(article._uid ?? offset + index + 1);
 
-		// Return combined text or empty string
-		return parts.length > 0 ? parts.join("\n\n") : "";
+		const parts = [
+			`_uid: ${uid}`,
+			article.title ? `title:\n${article.title}` : "",
+			article.lead ? `lead:\n${article.lead}` : "",
+			article.paragraphs && article.paragraphs.length > 0
+				? `paragraphs:\n${article.paragraphs.slice(0, 6).join("\n\n")}`
+				: "",
+			article.keywords && article.keywords.length > 0
+				? `keywords:\n${article.keywords.join(", ")}`
+				: "",
+			article.gpt_keywords && article.gpt_keywords.length > 0
+				? `gpt_keywords:\n${article.gpt_keywords.join(", ")}`
+				: "",
+		].filter((part) => part.trim().length > 0);
+
+		return {
+			_uid: uid,
+			text: parts.length > 0 ? parts.join("\n\n").slice(0, 7000) : "",
+		};
 	});
 
 	return {
@@ -74,27 +94,66 @@ async function load_articles(
 	};
 }
 
-/**
- * 4. The Extraction Function (Updated for AI SDK v6)
- */
-async function extract_city(text: string) {
-	// Note: generateObject is deprecated! We now use generateText with `output: Output.object()`
+async function extract_article_data(article: LoadedArticle) {
 	const result = await generateText({
 		model: lm_studio("gemma-4"),
-		system: `You are an advanced NLP assistant specialized in Named Entity Recognition for the Slovenian language.
-Your task is to extract exactly ONE CITY OR TOWN name from the provided text.
+		system: `You are an information extraction system for Slovenian MMC news articles.
 
-CRITICAL RULES:
-1. ONLY extract a city or town (e.g., Ljubljana, Kijev, Moskva).
-2. DO NOT extract countries (e.g., Slovenija, Ukrajina, ZDA, Rusija).
-3. DO NOT extract continents, rivers, regions, or organizations (e.g., Evropa, Sava, Sumska oblast, Kremlj).
-4. LEMMATIZATION: Return the city in Slovenian NOMINATIVE (base) case.
-   - If text says "v Kijevu", return "Kijev".
-   - If text says "iz Moskve", return "Moskva".
-   - If text says "nad Brusljem", return "Bruselj".
-5. If multiple cities appear, return the single most relevant city for the article.
-6. If a city name is ambiguous across countries, prefer the city in Slovenia.
-7. EDGE CASE: If there are absolutely no cities in the text, return an empty string.
+Your task is to extract only:
+1. the main topic of the article,
+2. the country where the main event happened,
+3. the city/place where the main event happened.
+
+The articles are written in Slovenian.
+
+Do not extract all mentioned countries or places.
+Extract only the location of the main event described in the article.
+
+Allowed topics are only:
+politika, vojna_in_konflikti, naravne_nesrece, nesrece_in_kriminal, sport, kultura, zabava, tehnologija, gospodarstvo, zdravje, okolje, turizem, drugo.
+
+Topic rules:
+- Choose the topic based on the main event of the article, not based on random mentioned words.
+- If the article is mainly about government, elections, laws, parliament, diplomacy, presidents or ministers, use politika.
+- If it is about war, military attacks, armed conflict, occupation, weapons or soldiers, use vojna_in_konflikti.
+- If it is about earthquakes, floods, storms, wildfires or weather disasters, use naravne_nesrece.
+- If it is about murders, traffic accidents, police, crime, trials or courts, use nesrece_in_kriminal.
+- If it is about sports competitions, teams, athletes or matches, use sport.
+- If it is about art, books, theatre, museums, exhibitions, festivals or film as art, use kultura.
+- If it is about celebrities, show business, TV shows, popular music or entertainment, use zabava.
+- If it is about science, AI, computers, space, software, devices or inventions, use tehnologija.
+- If it is about companies, prices, markets, inflation, finance, business or jobs, use gospodarstvo.
+- If it is about diseases, hospitals, medicine, treatment or public health, use zdravje.
+- If it is about climate, pollution, ecology, environmental protection or nature conservation, use okolje.
+- If it is about travel, destinations, holidays, tourists or tourism, use turizem.
+- If none of the topics fit, use drugo.
+
+Location rules:
+- Extract the country and place where the main event happened.
+- Ignore countries and places that are only mentioned as background or context.
+- The title and lead are more important than later paragraphs.
+- If the exact place is clearly mentioned, return it.
+- If only the country is known, return the country and set "kraj" to null.
+- Do not invent a place.
+- If the country cannot be determined, set "drzava" to null.
+- If the place cannot be determined, set "kraj" to null.
+- Return country and place names in Slovenian when possible, for example "Nemčija", "Avstrija", "Združene države Amerike", "Ukrajina".
+
+Return only a valid JSON object.
+Do not return a JSON array.
+Do not add explanations.
+Do not add confidence.
+Do not add sentiment.
+Do not add extra fields.
+
+Output format:
+{
+  "_uid": "...",
+  "tema": "...",
+  "drzava": "...",
+  "kraj": "..."
+}
+
 
 EXAMPLES:
 
@@ -107,23 +166,68 @@ Input:
 "Gospodarska rast se je umirila. Inflacija pada, kar je dobra novica za podjetja in državljane."
 Output:
 { "city": "" }
-`,
-		prompt: `Extract one city from the following article text. If multiple cities are mentioned, choose the single most relevant one. If the city name is ambiguous, prefer the city in Slovenia. Return only a single city name or an empty string if none applies.\n\n${text}`,
-		output: Output.object({ schema: city_schema }), // <-- The new v6 standard
+ 
+Examples:
+
+Input:
+_uid: 1
+title:
+Močno neurje povzročilo poplave v Avstriji
+lead:
+Zaradi obilnega deževja so morali evakuirati več krajev na severu Avstrije.
+paragraphs:
+Najhuje je bilo v okolici Linza, kjer so reke prestopile bregove.
+Output:
+{
+  "_uid": "1",
+  "tema": "naravne_nesrece",
+  "drzava": "Avstrija",
+  "kraj": "Linz"
+}
+
+Input:
+_uid: 2
+title:
+Rusija ponoči napadla Kijev
+lead:
+Ukrajinske oblasti poročajo o več eksplozijah v prestolnici.
+paragraphs:
+O napadu so razpravljali tudi predstavniki Evropske unije in ZDA.
+Output:
+{
+  "_uid": "2",
+  "tema": "vojna_in_konflikti",
+  "drzava": "Ukrajina",
+  "kraj": "Kijev"
+}
+
+Input:
+_uid: 3
+title:
+Inflacija v evrskem območju se umirja
+lead:
+Podjetja in potrošniki pričakujejo stabilnejše cene.
+paragraphs:
+Analitiki opozarjajo, da razmere še niso povsem stabilne.
+Output:
+{
+  "_uid": "3",
+  "tema": "gospodarstvo",
+  "drzava": null,
+  "kraj": null
+}`,
+		prompt: `Extract the main topic, country and place from this Slovenian MMC article. Return only the required JSON object.\n\n${article.text}`,
+		output: Output.object({ schema: extraction_schema }),
 		temperature: 0.1,
 	});
 
-	// Vercel AI natively parses the response and maps it to `result.output`
-	return result.output.city;
+	return result.output;
 }
 
-/**
- * 5. Main Execution Script
- */
 async function run_extraction() {
 	const file_path = new URL("../assets/mmc-100.yaml", import.meta.url);
 	const current_offset = 0;
-	const batch_size = 10; // Process just the first article for testing
+	const batch_size = 10;
 
 	try {
 		console.log(`📂 Loading articles...`);
@@ -139,27 +243,30 @@ async function run_extraction() {
 			`🚀 Processing batch (Offset: ${current_offset}, Size: ${batch_size})...\n`,
 		);
 
-		for (const [index, article_text] of articles.entries()) {
+		for (const [index, article] of articles.entries()) {
 			const global_index = current_offset + index + 1;
 
-			if (!article_text) {
+			if (!article.text) {
 				console.log(`⚠️  Article ${global_index} is empty, skipping...`);
 				continue;
 			}
 
 			console.log(`--- Article ${global_index} ---`);
-			console.log(`${article_text.slice(0, 150)}...\n`);
+			console.log(`${article.text.slice(0, 150)}...\n`);
 			console.log("🤖 AI is analyzing text...");
 
 			const start_time = performance.now();
-			const city = await extract_city(article_text);
+			const extracted = await extract_article_data(article);
 			const end_time = performance.now();
 
 			console.log("✅ Extraction Complete!");
 			console.log(
 				`⏱️  Time taken: ${((end_time - start_time) / 1000).toFixed(2)} seconds`,
 			);
-			console.log(`🏙️  Extracted City: "${city || "(none)"}"\n`);
+			console.log(`🆔 UID: "${extracted._uid}"`);
+			console.log(`🏷️  Extracted Topic: "${extracted.tema}"`);
+			console.log(`🌍 Extracted Country: "${extracted.drzava || "(none)"}"`);
+			console.log(`🏙️  Extracted Place: "${extracted.kraj || "(none)"}"\n`);
 		}
 	} catch (error) {
 		console.error(
