@@ -1,4 +1,5 @@
-import { readFile } from "node:fs/promises";
+import { readFile, writeFile, mkdir } from "node:fs/promises";
+import { existsSync } from "node:fs";
 import { createOpenAI } from "@ai-sdk/openai";
 import { generateText, Output } from "ai";
 import YAML from "yaml";
@@ -10,8 +11,7 @@ const lm_studio = createOpenAI({
 });
 
 const extraction_schema = z.object({
-	_uid: z.string(),
-	tema: z.enum([
+	topic: z.enum([
 		"politika",
 		"vojna_in_konflikti",
 		"naravne_nesrece",
@@ -26,12 +26,12 @@ const extraction_schema = z.object({
 		"turizem",
 		"drugo",
 	]),
-	drzava: z.string().nullable(),
-	kraj: z.string().nullable(),
+	country: z.string().nullable(),
+	city: z.string().nullable(),
 });
 
-type ArticleYaml = {
-	_uid?: string | number;
+type ArticleCleaned = {
+	_id?: string;
 	title?: string;
 	lead?: string;
 	paragraphs?: Array<string>;
@@ -40,13 +40,23 @@ type ArticleYaml = {
 };
 
 type LoadedArticle = {
-	_uid: string;
+	_id: string;
 	text: string;
 };
 
 type ArticleLoadResult = {
 	total_articles: number;
 	articles: LoadedArticle[];
+};
+
+type ExtractionOutput = z.infer<typeof extraction_schema>;
+
+type SavedExtraction = {
+	_id: string;
+	uid: string;
+	topic: ExtractionOutput["topic"];
+	country: string | null;
+	city: string | null;
 };
 
 async function load_articles(
@@ -58,8 +68,8 @@ async function load_articles(
 	const parsed_yaml = YAML.parse(raw_text) as unknown;
 
 	const article_list = Array.isArray(parsed_yaml)
-		? (parsed_yaml as ArticleYaml[])
-		: [parsed_yaml as ArticleYaml];
+		? (parsed_yaml as ArticleCleaned[])
+		: [parsed_yaml as ArticleCleaned];
 
 	const total_articles = article_list.length;
 	const sliced_articles =
@@ -68,10 +78,9 @@ async function load_articles(
 			: article_list.slice(offset);
 
 	const mapped_articles = sliced_articles.map((article, index) => {
-		const uid = String(article._uid ?? offset + index + 1);
+		const id = String(article._id ?? offset + index + 1);
 
 		const parts = [
-			`_uid: ${uid}`,
 			article.title ? `title:\n${article.title}` : "",
 			article.lead ? `lead:\n${article.lead}` : "",
 			article.paragraphs && article.paragraphs.length > 0
@@ -86,7 +95,7 @@ async function load_articles(
 		].filter((part) => part.trim().length > 0);
 
 		return {
-			_uid: uid,
+			_id: id,
 			text: parts.length > 0 ? parts.join("\n\n").slice(0, 7000) : "",
 		};
 	});
@@ -95,6 +104,51 @@ async function load_articles(
 		total_articles,
 		articles: mapped_articles,
 	};
+}
+
+function getNextOutputPath(): string {
+	const outDir = new URL("../assets/ai/", import.meta.url);
+	let index = 0;
+	while (
+		existsSync(
+			new URL(`output${String(index).padStart(2, "0")}.json`, outDir),
+		)
+	) {
+		index += 1;
+	}
+	return new URL(`output${String(index).padStart(2, "0")}.json`, outDir).pathname;
+}
+
+async function appendSavedResult(
+	outputPath: string,
+	entry: SavedExtraction,
+): Promise<void> {
+	await mkdir(new URL("../assets/ai/", import.meta.url), { recursive: true });
+
+	let results: SavedExtraction[] = [];
+	if (existsSync(outputPath)) {
+		const existing = await readFile(outputPath, "utf8");
+		results = JSON.parse(existing) as SavedExtraction[];
+	}
+
+	results.push(entry);
+	await writeFile(outputPath, JSON.stringify(results, null, 2), "utf8");
+}
+
+async function appendErrorId(_id: string): Promise<void> {
+	const errorPath = new URL("../assets/ai/error-responses.json", import.meta.url).pathname;
+	await mkdir(new URL("../assets/ai/", import.meta.url), { recursive: true });
+
+	let ids: string[] = [];
+	if (existsSync(errorPath)) {
+		const existing = await readFile(errorPath, "utf8");
+		ids = JSON.parse(existing) as string[];
+	}
+
+	if (!ids.includes(_id)) {
+		ids.push(_id);
+		await writeFile(errorPath, JSON.stringify(ids, null, 2), "utf8");
+	}
 }
 
 async function extract_article_data(article: LoadedArticle) {
@@ -141,6 +195,7 @@ Location rules:
 - If the country cannot be determined, set "drzava" to null.
 - If the place cannot be determined, set "kraj" to null.
 - Return country and place names in Slovenian when possible, for example "Nemčija", "Avstrija", "Združene države Amerike", "Ukrajina".
+- Be careful about typos in your output. The country and place names should be correct and properly spelled.
 
 Return only a valid JSON object.
 Do not return a JSON array.
@@ -151,16 +206,15 @@ Do not add extra fields.
 
 Output format:
 {
-  "_uid": "...",
-  "tema": "...",
-  "drzava": "...",
-  "kraj": "..."
+	"topic": "...",
+	"country": "...",
+	"city": "..."
 }
 
 Examples:
 
 Input:
-_uid: 1
+_id: 1
 title:
 Močno neurje povzročilo poplave v Avstriji
 lead:
@@ -169,14 +223,13 @@ paragraphs:
 Najhuje je bilo v okolici Linza, kjer so reke prestopile bregove.
 Output:
 {
-  "_uid": "1",
-  "tema": "naravne_nesrece",
-  "drzava": "Avstrija",
-  "kraj": "Linz"
+	"topic": "naravne_nesrece",
+	"country": "Avstrija",
+	"city": "Linz"
 }
 
 Input:
-_uid: 2
+_id: 2
 title:
 Rusija ponoči napadla Kijev
 lead:
@@ -185,14 +238,13 @@ paragraphs:
 O napadu so razpravljali tudi predstavniki Evropske unije in ZDA.
 Output:
 {
-  "_uid": "2",
-  "tema": "vojna_in_konflikti",
-  "drzava": "Ukrajina",
-  "kraj": "Kijev"
+	"topic": "vojna_in_konflikti",
+	"country": "Ukrajina",
+	"city": "Kijev"
 }
 
 Input:
-_uid: 3
+_id: 3
 title:
 Inflacija v evrskem območju se umirja
 lead:
@@ -201,10 +253,9 @@ paragraphs:
 Analitiki opozarjajo, da razmere še niso povsem stabilne.
 Output:
 {
-  "_uid": "3",
-  "tema": "gospodarstvo",
-  "drzava": null,
-  "kraj": null
+	"topic": "gospodarstvo",
+	"country": null,
+	"city": null
 }`,
 		prompt: `Extract the main topic, country and place from this Slovenian MMC article. Return only the required JSON object.\n\n${article.text}`,
 		output: Output.object({ schema: extraction_schema }),
@@ -215,7 +266,9 @@ Output:
 }
 
 async function run_extraction() {
-	const file_path = new URL("../assets/mmc-100.yaml", import.meta.url);
+	const file_path = process.argv[2]
+		? process.argv[2]
+		: new URL("../assets/cleaned/mmc-100.json", import.meta.url);
 	const current_offset = 0;
 
 	try {
@@ -230,6 +283,9 @@ async function run_extraction() {
 		console.log(
 			`Processing all articles (Offset: ${current_offset}, Count: ${articles.length})...\n`,
 		);
+
+		const outputPath = getNextOutputPath();
+		console.log(`📝 Output file: ${outputPath}`);
 
 		const batch_start_time = performance.now();
 		let processed_articles = 0;
@@ -246,19 +302,36 @@ async function run_extraction() {
 			console.log(`${article.text.slice(0, 150)}...\n`);
 			console.log("🤖 AI is analyzing text...");
 
-			const start_time = performance.now();
-			const extracted = await extract_article_data(article);
-			const end_time = performance.now();
-			processed_articles += 1;
+			try {
+				const start_time = performance.now();
+				const extracted = await extract_article_data(article);
+				const end_time = performance.now();
+				processed_articles += 1;
 
-			console.log("✅ Extraction Complete!");
-			console.log(
-				`⏱️  Time taken: ${((end_time - start_time) / 1000).toFixed(2)} seconds`,
-			);
-			console.log(`🆔 UID: "${extracted._uid}"`);
-			console.log(`🏷️  Extracted Topic: "${extracted.tema}"`);
-			console.log(`🌍 Extracted Country: "${extracted.drzava || "(none)"}"`);
-			console.log(`🏙️  Extracted Place: "${extracted.kraj || "(none)"}"\n`);
+				const saved: SavedExtraction = {
+					_id: article._id,
+					uid: article._id,
+					topic: extracted.topic,
+					country: extracted.country,
+					city: extracted.city,
+				};
+
+				await appendSavedResult(outputPath, saved);
+
+				console.log("✅ Extraction Complete!");
+				console.log(
+					`⏱️  Time taken: ${((end_time - start_time) / 1000).toFixed(2)} seconds`,
+				);
+				console.log(`🆔 ID: "${article._id}"`);
+				console.log(`🏷️  Extracted Topic: "${extracted.topic}"`);
+				console.log(
+					`🌍 Extracted Country: "${extracted.country || "(none)"}"`,
+				);
+				console.log(`🏙️  Extracted City: "${extracted.city || "(none)"}"\n`);
+			} catch (extractError) {
+				console.error(`❌ Error on _id ${article._id}:`, extractError);
+				await appendErrorId(article._id);
+			}
 		}
 
 		const batch_end_time = performance.now();
