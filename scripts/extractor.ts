@@ -215,7 +215,7 @@ Output:
 }
 
 async function run_extraction() {
-	const file_path = new URL("../assets/cleaned/mmc-100.json", import.meta.url);
+	const file_path = new URL("../assets/mmc-100.yaml", import.meta.url);
 	const current_offset = 0;
 
 	try {
