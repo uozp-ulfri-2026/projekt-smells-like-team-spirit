@@ -1,5 +1,6 @@
 import { readFile, writeFile, mkdir } from "node:fs/promises";
 import { existsSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { createOpenAI } from "@ai-sdk/openai";
 import { generateText, Output } from "ai";
 import YAML from "yaml";
@@ -116,7 +117,9 @@ function getNextOutputPath(): string {
 	) {
 		index += 1;
 	}
-	return new URL(`output${String(index).padStart(2, "0")}.json`, outDir).pathname;
+	return fileURLToPath(
+		new URL(`output${String(index).padStart(2, "0")}.json`, outDir),
+	);
 }
 
 async function appendSavedResult(
@@ -136,7 +139,9 @@ async function appendSavedResult(
 }
 
 async function appendErrorId(_id: string): Promise<void> {
-	const errorPath = new URL("../assets/ai/error-responses.json", import.meta.url).pathname;
+	const errorPath = fileURLToPath(
+		new URL("../assets/ai/error-responses.json", import.meta.url),
+	);
 	await mkdir(new URL("../assets/ai/", import.meta.url), { recursive: true });
 
 	let ids: string[] = [];
@@ -268,7 +273,7 @@ Output:
 async function run_extraction() {
 	const file_path = process.argv[2]
 		? process.argv[2]
-		: new URL("../assets/cleaned/mmc-100.json", import.meta.url);
+		: new URL("../assets/cleaned/mmc-10.json", import.meta.url);
 	const current_offset = 0;
 
 	try {
