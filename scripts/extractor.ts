@@ -2,7 +2,7 @@ import { readFile, writeFile, mkdir } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { createOpenAI } from "@ai-sdk/openai";
-import { generateText, Output } from "ai";
+import { generateText } from "ai";
 import YAML from "yaml";
 import { z } from "zod";
 
@@ -63,6 +63,9 @@ type SavedExtraction = {
 
 type ErrorEntry = ArticleCleaned & {
 	error: string;
+	received_topic?: string;
+	error_details?: string;
+	raw_response?: string;
 };
 
 async function load_articles(
@@ -161,14 +164,13 @@ async function appendSavedResult(
 	await writeFile(outputPath, JSON.stringify(results, null, 2), "utf8");
 }
 
-async function extract_article_data(article: LoadedArticle) {
-	try {
-		const result = await generateText({
-			model: lm_studio("gemma-4"),
-			system: `You are an information extraction system for Slovenian MMC news articles.
+async function extract_article_data(article: LoadedArticle): Promise<ExtractionOutput> {
+	const result = await generateText({
+		model: lm_studio("gemma-4"),
+		system: `You are an information extraction system for Slovenian MMC news articles.
 
 Your task is to extract only:
-1. the main topic of the article,
+1. the main topic of the article -- IT IS VERY VERY IMPORTANT THAY YOU ONLY CHOOSE ONE TOPIC FROM THE ALLOWED TOPICS LIST -- DO NOT INVENT NEW TOPICS,
 2. the country where the main event happened,
 3. the city/place where the main event happened.
 
@@ -177,8 +179,23 @@ The articles are written in Slovenian.
 Do not extract all mentioned countries or places.
 Extract only the location of the main event described in the article.
 
-Allowed topics are only:
-politika, vojna_in_konflikti, naravne_nesrece, prometne_nesrece, kriminal, sport, kultura, zabava, tehnologija, gospodarstvo, zdravje, okolje, turizem, gastronomija,drugo.
+ALLOWED TOPICS:
+- politika 
+- vojna_in_konflikti
+- naravne_nesrece,
+- prometne_nesrece, 
+- kriminal
+- sport
+- kultura
+- zabava
+- tehnologija
+- gospodarstvo
+- zdravje
+- okolje
+- turizem
+- gastronomija
+- drugo
+
 
 Topic rules:
 - Choose the topic based on the main event of the article, not based on random mentioned words.
@@ -189,8 +206,8 @@ Topic rules:
 - If it is about traffic accidents, car crashes, road incidents or transportation disasters, use prometne_nesrece.
 - If it is about food, restaurants, cooking or culinary arts, use gastronomija.
 - If it is about sports competitions, teams, athletes or matches, use sport.
-- If it is about art, books, theatre, museums, exhibitions, festivals or film as art, use kultura.
-- If it is about celebrities, show business, TV shows, popular music or entertainment, use zabava.
+- If it is about art, books, theatre, museums, exhibitions, festivals, fashion or film as art, use kultura.
+- If it is about celebrities, show business, TV shows, popular music, concerts or entertainment, use zabava.
 - If it is about science, AI, computers, space, software, devices or inventions, use tehnologija.
 - If it is about companies, prices, markets, inflation, finance, business or jobs, use gospodarstvo.
 - If it is about diseases, hospitals, medicine, treatment or public health, use zdravje.
@@ -273,27 +290,48 @@ Output:
 	"topic": "gospodarstvo",
 	"country": null,
 	"city": null
-}`,
-			prompt: `Extract the main topic, country and place from this Slovenian MMC article. Return only the required JSON object.\n\n${article.text}`,
-			output: Output.text(),
-			temperature: 0.1,
-		});
+}
 
-		// Parse the raw text response
-		const jsonStr = result.text.trim();
-		const parsed = JSON.parse(jsonStr);
-		const validated = extraction_schema.parse(parsed);
-		return validated;
-	} catch (error) {
-		let detailedError = error instanceof Error ? error.message : String(error);
-		
-		// If we got a validation error after parsing JSON, include the raw response
-		if (error instanceof Error && error.message.includes("Invalid enum value")) {
-			detailedError = `LLM returned invalid value. Check the raw response in the article data.`;
-		}
-		
-		throw new Error(detailedError);
+VERY IMPORTANT: Be careful about these mistakes you often make:  Do not invent topics that are not in the allowed list. If you want to put a topic that is not in the list, use "drugo".
+Topics you most frequently invent are "nauka" or "nauk" - use "drugo" instead, "koncerti" - use "zabava" instead, "moda" - use "kultura" instead, you often make a typo "gospodstvo" instead of gospodarstvo.
+`,
+
+		prompt: `Extract the main topic, country and place from this Slovenian MMC article. Return only the required JSON object.\n\n${article.text}.`,
+		temperature: 0.1,
+	});
+
+	const raw_response = result.text?.trim() ?? "";
+	if (!raw_response) {
+		throw new Error("Model returned an empty response.");
 	}
+
+	let parsed_response: unknown;
+	try {
+		parsed_response = JSON.parse(raw_response) as unknown;
+	} catch (parseError) {
+		const parseMessage = parseError instanceof Error ? parseError.message : String(parseError);
+		throw new Error(
+			`Model returned non-JSON text. Parse error: ${parseMessage}\nRaw response:\n${raw_response}`,
+		);
+	}
+
+	const validation = extraction_schema.safeParse(parsed_response);
+	if (!validation.success) {
+		const parsedTopic =
+			typeof parsed_response === "object" &&
+			parsed_response !== null &&
+			"topic" in parsed_response
+				? String((parsed_response as Record<string, unknown>).topic)
+				: undefined;
+		const issueText = validation.error.issues
+			.map((issue) => `${issue.path.join(".") || "<root>"}: ${issue.message}`)
+			.join(" | ");
+		throw new Error(
+			`Schema validation failed.\nReceived topic: ${parsedTopic ?? "(missing)"}\nValidation issues: ${issueText}\nRaw response:\n${raw_response}`,
+		);
+	}
+
+	return validation.data;
 }
 
 async function run_extraction() {
@@ -361,6 +399,13 @@ async function run_extraction() {
 				console.log(`🏙️  Extracted City: "${extracted.city || "(none)"}"\n`);
 			} catch (extractError) {
 				const errorMessage = extractError instanceof Error ? extractError.message : String(extractError);
+				const receivedTopicMatch = errorMessage.match(/Received topic:\s*([^\n]+)/);
+				const receivedTopic = receivedTopicMatch?.[1]?.trim();
+				const isTopicValidationError = errorMessage.includes("Schema validation failed") && Boolean(receivedTopic);
+				const normalizedError = isTopicValidationError ? "topic error" : errorMessage;
+				const errorDetails = isTopicValidationError ? errorMessage : undefined;
+				const rawResponseMatch = errorMessage.match(/Raw response:\n([\s\S]*)$/);
+				const rawResponse = rawResponseMatch?.[1]?.trim();
 				console.error(`❌ Error on _id ${article._id}:`, extractError);
 				const errorPath = getErrorPathForIndex(runIndex);
 				await mkdir(new URL("../assets/ai/errors/", import.meta.url), {
@@ -378,7 +423,10 @@ async function run_extraction() {
 					const errorEntry: ErrorEntry = {
 						...article,
 						_id: article._id,
-						error: errorMessage,
+						error: normalizedError,
+						...(receivedTopic && { received_topic: receivedTopic }),
+						...(errorDetails && { error_details: errorDetails }),
+						...(rawResponse && { raw_response: rawResponse }),
 					};
 					errors.push(errorEntry);
 					await writeFile(errorPath, JSON.stringify(errors, null, 2), "utf8");
