@@ -119,9 +119,7 @@ function getNextRunIndex(): number {
 	const outDir = new URL("../assets/ai/outputs/", import.meta.url);
 	let index = 0;
 	while (
-		existsSync(
-			new URL(`output${String(index).padStart(2, "0")}.json`, outDir),
-		)
+		existsSync(new URL(`output${String(index).padStart(2, "0")}.json`, outDir))
 	) {
 		index += 1;
 	}
@@ -170,7 +168,9 @@ async function appendSavedResult(
 	await writeFile(outputPath, JSON.stringify(results, null, 2), "utf8");
 }
 
-async function extract_article_data(article: LoadedArticle): Promise<ExtractionOutput> {
+async function extract_article_data(
+	article: LoadedArticle,
+): Promise<ExtractionOutput> {
 	const result = await generateText({
 		model: lm_studio("gemma-4"),
 		system: `You are an information extraction system for Slovenian MMC news articles.
@@ -315,7 +315,8 @@ Topics you most frequently invent are "nauka" or "nauk" - use "drugo" instead, "
 	try {
 		parsed_response = JSON.parse(raw_response) as unknown;
 	} catch (parseError) {
-		const parseMessage = parseError instanceof Error ? parseError.message : String(parseError);
+		const parseMessage =
+			parseError instanceof Error ? parseError.message : String(parseError);
 		throw new Error(
 			`Model returned non-JSON text. Parse error: ${parseMessage}\nRaw response:\n${raw_response}`,
 		);
@@ -373,7 +374,9 @@ async function run_extraction() {
 			);
 
 			if (found_index < 0) {
-				throw new Error(`Resume _id not found in input file: ${resume_from_id}`);
+				throw new Error(
+					`Resume _id not found in input file: ${resume_from_id}`,
+				);
 			}
 
 			resume_start_index = found_index;
@@ -428,18 +431,27 @@ async function run_extraction() {
 				);
 				console.log(`🆔 ID: "${article._id}"`);
 				console.log(`🏷️  Extracted Topic: "${extracted.topic}"`);
-				console.log(
-					`🌍 Extracted Country: "${extracted.country || "(none)"}"`,
-				);
+				console.log(`🌍 Extracted Country: "${extracted.country || "(none)"}"`);
 				console.log(`🏙️  Extracted City: "${extracted.city || "(none)"}"\n`);
 			} catch (extractError) {
-				const errorMessage = extractError instanceof Error ? extractError.message : String(extractError);
-				const receivedTopicMatch = errorMessage.match(/Received topic:\s*([^\n]+)/);
+				const errorMessage =
+					extractError instanceof Error
+						? extractError.message
+						: String(extractError);
+				const receivedTopicMatch = errorMessage.match(
+					/Received topic:\s*([^\n]+)/,
+				);
 				const receivedTopic = receivedTopicMatch?.[1]?.trim();
-				const isTopicValidationError = errorMessage.includes("Schema validation failed") && Boolean(receivedTopic);
-				const normalizedError = isTopicValidationError ? "topic error" : errorMessage;
+				const isTopicValidationError =
+					errorMessage.includes("Schema validation failed") &&
+					Boolean(receivedTopic);
+				const normalizedError = isTopicValidationError
+					? "topic error"
+					: errorMessage;
 				const errorDetails = isTopicValidationError ? errorMessage : undefined;
-				const rawResponseMatch = errorMessage.match(/Raw response:\n([\s\S]*)$/);
+				const rawResponseMatch = errorMessage.match(
+					/Raw response:\n([\s\S]*)$/,
+				);
 				const rawResponse = rawResponseMatch?.[1]?.trim();
 				console.error(`❌ Error on _id ${article._id}:`, extractError);
 				const errorPath = getErrorPathForIndex(runIndex);
@@ -481,4 +493,4 @@ async function run_extraction() {
 	}
 }
 
-run_extraction();
+await run_extraction();

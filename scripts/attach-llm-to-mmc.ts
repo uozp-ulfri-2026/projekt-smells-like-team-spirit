@@ -75,14 +75,19 @@ async function readJsonArray(path: string): Promise<JsonObject[]> {
 	return objects;
 }
 
-function indexById(entries: JsonObject[], label: string): Map<string, JsonObject> {
+function indexById(
+	entries: JsonObject[],
+	label: string,
+): Map<string, JsonObject> {
 	const byId = new Map<string, JsonObject>();
 
 	for (const [index, entry] of entries.entries()) {
 		const id = getId(entry);
 
 		if (!id) {
-			throw new Error(`${label} entry at index ${index} is missing a string _id.`);
+			throw new Error(
+				`${label} entry at index ${index} is missing a string _id.`,
+			);
 		}
 
 		if (byId.has(id)) {
@@ -118,17 +123,19 @@ function indexById(entries: JsonObject[], label: string): Map<string, JsonObject
 async function main() {
 	const args = process.argv.slice(2);
 	const allowMissing = args.includes("--allow-missing");
-	
+
 	// Extract unavailable IDs file path after --unavailable flag
 	const unavailableIndex = args.indexOf("--unavailable");
 	let unavailableFile: string | undefined;
 	let otherArgs = args.filter((arg) => arg !== "--allow-missing");
-	
+
 	if (unavailableIndex !== -1) {
 		unavailableFile = args[unavailableIndex + 1];
-		otherArgs = args.slice(0, unavailableIndex).filter((arg) => arg !== "--allow-missing");
+		otherArgs = args
+			.slice(0, unavailableIndex)
+			.filter((arg) => arg !== "--allow-missing");
 	}
-	
+
 	const [mmcPath, outputPath, ...llmPaths] = otherArgs;
 
 	if (!mmcPath || !outputPath || llmPaths.length === 0) {
@@ -139,10 +146,12 @@ async function main() {
 	const llmRows = (
 		await Promise.all(llmPaths.map((llmPath) => readJsonArray(llmPath)))
 	).flat();
-	
+
 	// Read unavailable IDs if --unavailable flag was provided
-	const unavailableIds = unavailableFile ? await readIdList(unavailableFile) : new Set<string>();
-	
+	const unavailableIds = unavailableFile
+		? await readIdList(unavailableFile)
+		: new Set<string>();
+
 	const llmById = indexById(llmRows, "LLM output");
 	const mmcIds = new Set<string>();
 	const missingIds: string[] = [];
@@ -156,7 +165,7 @@ async function main() {
 		}
 
 		mmcIds.add(id);
-		
+
 		// If this ID is in the unavailable set, attach empty llm object
 		if (unavailableIds.has(id)) {
 			const { llm: _existingLlm, ...mmcWithoutOldLlm } = mmcRow;
@@ -166,7 +175,7 @@ async function main() {
 				llm: {},
 			};
 		}
-		
+
 		const llm = llmById.get(id);
 
 		if (!llm) {
@@ -206,7 +215,9 @@ async function main() {
 	console.log(`MMC rows: ${mmcRows.length}`);
 	console.log(`LLM output rows: ${llmRows.length}`);
 	console.log(`Unavailable IDs: ${unavailableIds.size}`);
-	console.log(`Rows with actual llm data: ${mmcRows.length - missingIds.length - unavailableCount}`);
+	console.log(
+		`Rows with actual llm data: ${mmcRows.length - missingIds.length - unavailableCount}`,
+	);
 	console.log(`Rows with llm: {} (unavailable): ${unavailableCount}`);
 	console.log(`Rows missing llm: ${missingIds.length}`);
 	console.log(`Extra LLM ids not found in MMC: ${extraLlmIds.length}`);

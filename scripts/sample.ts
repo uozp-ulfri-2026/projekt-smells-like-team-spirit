@@ -10,7 +10,7 @@ const SAMPLE_SIZE = 1000;
 
 async function getNextSampleIndex(): Promise<number> {
 	const cleaned_dir = join(__dirname, "..", "assets", "cleaned", "sampled");
-	
+
 	if (!existsSync(cleaned_dir)) {
 		return 0;
 	}
@@ -18,7 +18,7 @@ async function getNextSampleIndex(): Promise<number> {
 	let maxIndex = -1;
 	const fs = await import("node:fs");
 	const files = fs.readdirSync(cleaned_dir);
-	
+
 	for (const file of files) {
 		const match = file.match(/^mmc-sample-(\d+)\.json$/);
 		if (match) {
@@ -38,7 +38,8 @@ function getRandomElements<T>(array: T[], count: number): T[] {
 }
 
 async function run_sampling(): Promise<void> {
-	const input_file = process.argv[2] || join(__dirname, "..", "assets", "cleaned", "mmc.json");
+	const input_file =
+		process.argv[2] || join(__dirname, "..", "assets", "cleaned", "mmc.json");
 
 	try {
 		console.log(`Reading ${input_file}...`);
@@ -66,4 +67,4 @@ async function run_sampling(): Promise<void> {
 	}
 }
 
-run_sampling();
+await run_sampling();
