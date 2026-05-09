@@ -1,0 +1,725 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          69.1850584,
+          34.5269503
+        ]
+      },
+      "properties": {
+        "city": "Kabul",
+        "country": "Afganistan",
+        "count": 12
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -71.1810703,
+          44.4696602
+        ]
+      },
+      "properties": {
+        "city": "Berlin",
+        "country": "Amerika",
+        "count": 1
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          70.613481,
+          37.216341
+        ]
+      },
+      "properties": {
+        "city": "Fajzabad",
+        "country": "Afganistan",
+        "count": 1
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          66.2426766,
+          35.5532126
+        ]
+      },
+      "properties": {
+        "city": "Sar-e-Pul",
+        "country": "Afganistan",
+        "count": 1
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          5.5291395,
+          22.7859372
+        ]
+      },
+      "properties": {
+        "city": "Tamanrasset",
+        "country": "Alžirija",
+        "count": 1
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          68.3360426,
+          34.3191345
+        ]
+      },
+      "properties": {
+        "city": "Maidan Wardak",
+        "country": "Afganistan",
+        "count": 1
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          62.2163252,
+          34.3491443
+        ]
+      },
+      "properties": {
+        "city": "Herat",
+        "country": "Afganistan",
+        "count": 7
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          19.8184435,
+          41.3281482
+        ]
+      },
+      "properties": {
+        "city": "Tirana",
+        "country": "Albanija",
+        "count": 18
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -1.9958302,
+          51.3525027
+        ]
+      },
+      "properties": {
+        "city": "Devizes",
+        "country": "Anglija",
+        "count": 1
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.21807,
+          51.4443059
+        ]
+      },
+      "properties": {
+        "city": "Dartford",
+        "country": "Anglija",
+        "count": 1
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          13.6003573,
+          45.638609
+        ]
+      },
+      "properties": {
+        "city": "Tržaški zaliv",
+        "country": "Amerika",
+        "count": 1
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          19.8184435,
+          41.3281482
+        ]
+      },
+      "properties": {
+        "city": "Tirana",
+        "country": "Albanska",
+        "count": 3
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          64,
+          31
+        ]
+      },
+      "properties": {
+        "city": "Helmand",
+        "country": "Afganistan",
+        "count": 1
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          19.9050075,
+          40.7725141
+        ]
+      },
+      "properties": {
+        "city": "Kucova",
+        "country": "Albanija",
+        "count": 1
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          2.3483915,
+          48.8534951
+        ]
+      },
+      "properties": {
+        "city": "Pariz",
+        "country": "Američsko",
+        "count": 1
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          3.0588445,
+          36.7729333
+        ]
+      },
+      "properties": {
+        "city": "Alžir",
+        "country": "Alžirija",
+        "count": 5
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          1.6682694,
+          42.5768944
+        ]
+      },
+      "properties": {
+        "city": "Soldeu",
+        "country": "Andor",
+        "count": 2
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          1.6682694,
+          42.5768944
+        ]
+      },
+      "properties": {
+        "city": "Soldeu",
+        "country": "Andora",
+        "count": 1
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -0.1630624,
+          53.088725
+        ]
+      },
+      "properties": {
+        "city": "Coningsby",
+        "country": "Anglija",
+        "count": 1
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -110.9253679,
+          32.2489645
+        ]
+      },
+      "properties": {
+        "city": "Kair",
+        "country": "Amerika",
+        "count": 1
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          8.3169418,
+          36.7667186
+        ]
+      },
+      "properties": {
+        "city": "El Tarf",
+        "country": "Alžirija",
+        "count": 1
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -2.8908955,
+          53.1908873
+        ]
+      },
+      "properties": {
+        "city": "Chester",
+        "country": "Anglija",
+        "count": 1
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          19.9580758,
+          40.7018636
+        ]
+      },
+      "properties": {
+        "city": "Berat",
+        "country": "Albanija",
+        "count": 1
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          68.4132108,
+          33.5448968
+        ]
+      },
+      "properties": {
+        "city": "Gazni",
+        "country": "Afganistan",
+        "count": 1
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          20.3533616,
+          40.233256
+        ]
+      },
+      "properties": {
+        "city": "Permet",
+        "country": "Albanija",
+        "count": 1
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          69,
+          35.75
+        ]
+      },
+      "properties": {
+        "city": "Baglan",
+        "country": "Afganistan",
+        "count": 1
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          67.25,
+          34.75
+        ]
+      },
+      "properties": {
+        "city": "Bamijan",
+        "country": "Afganistan",
+        "count": 2
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          19.5989755,
+          41.8097827
+        ]
+      },
+      "properties": {
+        "city": "Shengjin",
+        "country": "Albanija",
+        "count": 3
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          10.0013165,
+          53.5501721
+        ]
+      },
+      "properties": {
+        "city": "Hamburg",
+        "country": "Albanija",
+        "count": 1
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          10.0013165,
+          53.5501721
+        ]
+      },
+      "properties": {
+        "city": "Hamburg",
+        "country": "Albanska",
+        "count": 1
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          51.5081812,
+          25.3108807
+        ]
+      },
+      "properties": {
+        "city": "Doha",
+        "country": "Afganistan",
+        "count": 2
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          1.4495827,
+          42.552408
+        ]
+      },
+      "properties": {
+        "city": "Pal Arinsal",
+        "country": "Andor",
+        "count": 1
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          1.4495827,
+          42.552408
+        ]
+      },
+      "properties": {
+        "city": "Pal Arinsal",
+        "country": "Andora",
+        "count": 2
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          19.5908646,
+          41.8805267
+        ]
+      },
+      "properties": {
+        "city": "Gjader",
+        "country": "Albanija",
+        "count": 2
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -82.9597573,
+          42.4220852
+        ]
+      },
+      "properties": {
+        "city": "Riad",
+        "country": "Amerika",
+        "count": 1
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          30.1140089,
+          -1.9534357
+        ]
+      },
+      "properties": {
+        "city": "Kigali",
+        "country": "Afrika",
+        "count": 1
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          2.9999825,
+          28.0000272
+        ]
+      },
+      "properties": {
+        "city": "Alžir",
+        "country": "Alžirsko",
+        "count": 1
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          71.133333,
+          34.95
+        ]
+      },
+      "properties": {
+        "city": "Kunar",
+        "country": "Afganistan",
+        "count": 1
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          71.130031,
+          34.868317
+        ]
+      },
+      "properties": {
+        "city": "Asadabad",
+        "country": "Afganistan",
+        "count": 1
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          20.4075685,
+          41.4885105
+        ]
+      },
+      "properties": {
+        "city": "Strikçan",
+        "country": "Albanija",
+        "count": 1
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          31.2357257,
+          30.0443879
+        ]
+      },
+      "properties": {
+        "city": "Kairo",
+        "country": "Afrika",
+        "count": 1
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          67.1114085,
+          36.7090366
+        ]
+      },
+      "properties": {
+        "city": "Mazar-e-Šarif",
+        "country": "Afganistan",
+        "count": 1
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -2.1357384,
+          51.9896896
+        ]
+      },
+      "properties": {
+        "city": "Cardiff",
+        "country": "Anglija",
+        "count": 1
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          19.8184435,
+          41.3281482
+        ]
+      },
+      "properties": {
+        "city": "Tirana",
+        "country": "Albanska republika",
+        "count": 1
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -1.8518439,
+          52.4948994
+        ]
+      },
+      "properties": {
+        "city": "Birmingham",
+        "country": "Anglija",
+        "count": 1
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.6055387,
+          28.1420115
+        ]
+      },
+      "properties": {
+        "city": "Alžirija",
+        "country": "Afrika",
+        "count": 1
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -2.5972985,
+          51.4538022
+        ]
+      },
+      "properties": {
+        "city": "Bristol",
+        "country": "Anglija",
+        "count": 2
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -2.3596963,
+          51.3813864
+        ]
+      },
+      "properties": {
+        "city": "Bath",
+        "country": "Anglija",
+        "count": 1
+      }
+    }
+  ]
+}

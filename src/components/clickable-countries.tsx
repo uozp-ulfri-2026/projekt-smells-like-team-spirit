@@ -17,20 +17,20 @@ export function ClickableCountries({ onCountryClick }: ClickableCountriesProps) 
     useEffect(() => {
         if (!isLoaded || !map) return;
 
-        const sourceId = "countries-source";
-        const layerId = "countries-fill";
+        const source_id = "countries-source";
+        const layer_id = "countries-fill";
 
-        if (!map.getSource(sourceId)) {
-            map.addSource(sourceId, {
+        if (!map.getSource(source_id)) {
+            map.addSource(source_id, {
                 type: "geojson",
                 data: "https://raw.githubusercontent.com/nvkelso/natural-earth-vector/refs/heads/master/geojson/ne_50m_admin_0_countries.geojson",
                 generateId: true,
             });
 
             map.addLayer({
-                id: layerId,
+                id: layer_id,
                 type: "fill",
-                source: sourceId,
+                source: source_id,
                 paint: {
                     "fill-color": "#3b82f6", // A nice standard blue highlight
                     "fill-opacity": [
@@ -43,32 +43,32 @@ export function ClickableCountries({ onCountryClick }: ClickableCountriesProps) 
             });
         }
 
-        let hoveredId: string | number | null = null;
+        let hovered_id: string | number | null = null;
 
         type MapEventWithFeatures = MapMouseEvent & { features?: MapGeoJSONFeature[] };
 
-        const handleMouseMove = (e: MapEventWithFeatures) => {
+        const handle_mouse_move = (e: MapEventWithFeatures) => {
             if (e.features && e.features.length > 0) {
-                if (hoveredId !== null) {
-                    map.setFeatureState({ source: sourceId, id: hoveredId }, { hover: false });
+                if (hovered_id !== null) {
+                    map.setFeatureState({ source: source_id, id: hovered_id }, { hover: false });
                 }
-                hoveredId = e.features[0].id ?? null;
-                if (hoveredId !== null) {
-                    map.setFeatureState({ source: sourceId, id: hoveredId }, { hover: true });
+                hovered_id = e.features[0].id ?? null;
+                if (hovered_id !== null) {
+                    map.setFeatureState({ source: source_id, id: hovered_id }, { hover: true });
                 }
                 map.getCanvas().style.cursor = "pointer";
             }
         };
 
-        const handleMouseLeave = () => {
-            if (hoveredId !== null) {
-                map.setFeatureState({ source: sourceId, id: hoveredId }, { hover: false });
+        const handle_mouse_leave = () => {
+            if (hovered_id !== null) {
+                map.setFeatureState({ source: source_id, id: hovered_id }, { hover: false });
             }
-            hoveredId = null;
+            hovered_id = null;
             map.getCanvas().style.cursor = "";
         };
 
-        const handleClick = (e: MapEventWithFeatures) => {
+        const handle_click = (e: MapEventWithFeatures) => {
             if (e.features && e.features.length > 0 && onCountryClick) {
                 const properties = e.features[0].properties;
 
@@ -82,19 +82,19 @@ export function ClickableCountries({ onCountryClick }: ClickableCountriesProps) 
             }
         };
 
-        map.on("mousemove", layerId, handleMouseMove);
-        map.on("mouseleave", layerId, handleMouseLeave);
-        map.on("click", layerId, handleClick);
+        map.on("mousemove", layer_id, handle_mouse_move);
+        map.on("mouseleave", layer_id, handle_mouse_leave);
+        map.on("click", layer_id, handle_click);
 
         return () => {
-            map.off("mousemove", layerId, handleMouseMove);
-            map.off("mouseleave", layerId, handleMouseLeave);
-            map.off("click", layerId, handleClick);
+            map.off("mousemove", layer_id, handle_mouse_move);
+            map.off("mouseleave", layer_id, handle_mouse_leave);
+            map.off("click", layer_id, handle_click);
 
             // Ensure the map style is still valid before removing layers/sources
             if (map.getStyle()) {
-                if (map.getLayer(layerId)) map.removeLayer(layerId);
-                if (map.getSource(sourceId)) map.removeSource(sourceId);
+                if (map.getLayer(layer_id)) map.removeLayer(layer_id);
+                if (map.getSource(source_id)) map.removeSource(source_id);
             }
         };
     }, [map, isLoaded, onCountryClick]);
