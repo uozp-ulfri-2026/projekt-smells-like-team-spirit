@@ -7,13 +7,14 @@ function usage(): never {
 	console.log(
 		[
 			"Usage:",
-			"  bun scripts/attach-llm-to-mmc.ts <original-mmc.json> <output.json> <llm-output-1.json> [llm-output-2.json ...]",
+			"  bun scripts/attach-llm-to-mmc.ts <original-mmc.json> <output.json> <llm-output-1.json> [llm-output-2.json ...] [--unavailable unavailable-ids.json]",
 			"",
 			"Example:",
-			"  bun scripts/attach-llm-to-mmc.ts assets/cleaned/mmc.json assets/processed/mmc-with-llm.json assets/processed/combined.json assets/processed/errors/combined-errors.json",
+			"  bun scripts/attach-llm-to-mmc.ts assets/cleaned/mmc.json assets/final/mmc-with-llm.json assets/ai/outputs/output00.json --unavailable assets/final/responses/unavailable-ids.json",
 			"",
 			"Optional:",
-			"  --allow-missing   Write output even if some MMC rows do not have an LLM object.",
+			"  --allow-missing      Write output even if some MMC rows do not have an LLM object.",
+			"  --unavailable <ids>  JSON file with array of IDs to mark as unavailable. Rows with these IDs will get llm: {}.",
 		].join("\n"),
 	);
 	process.exit(1);
@@ -31,6 +32,26 @@ function getId(value: JsonObject): string | undefined {
 
 function isErrorEntry(value: JsonObject): boolean {
 	return "error" in value;
+}
+
+async function readIdList(path: string): Promise<Set<string>> {
+	const raw = await readFile(path, "utf8");
+	const parsed = JSON.parse(raw) as unknown;
+
+	if (!Array.isArray(parsed)) {
+		throw new Error(`${path} must contain a JSON array of IDs.`);
+	}
+
+	const ids = new Set<string>();
+
+	for (const [index, id] of parsed.entries()) {
+		if (typeof id !== "string") {
+			throw new Error(`${path} contains a non-string entry at index ${index}.`);
+		}
+		ids.add(id);
+	}
+
+	return ids;
 }
 
 async function readJsonArray(path: string): Promise<JsonObject[]> {
@@ -97,8 +118,18 @@ function indexById(entries: JsonObject[], label: string): Map<string, JsonObject
 async function main() {
 	const args = process.argv.slice(2);
 	const allowMissing = args.includes("--allow-missing");
-	const paths = args.filter((arg) => arg !== "--allow-missing");
-	const [mmcPath, outputPath, ...llmPaths] = paths;
+	
+	// Extract unavailable IDs file path after --unavailable flag
+	const unavailableIndex = args.indexOf("--unavailable");
+	let unavailableFile: string | undefined;
+	let otherArgs = args.filter((arg) => arg !== "--allow-missing");
+	
+	if (unavailableIndex !== -1) {
+		unavailableFile = args[unavailableIndex + 1];
+		otherArgs = args.slice(0, unavailableIndex).filter((arg) => arg !== "--allow-missing");
+	}
+	
+	const [mmcPath, outputPath, ...llmPaths] = otherArgs;
 
 	if (!mmcPath || !outputPath || llmPaths.length === 0) {
 		usage();
@@ -108,10 +139,14 @@ async function main() {
 	const llmRows = (
 		await Promise.all(llmPaths.map((llmPath) => readJsonArray(llmPath)))
 	).flat();
+	
+	// Read unavailable IDs if --unavailable flag was provided
+	const unavailableIds = unavailableFile ? await readIdList(unavailableFile) : new Set<string>();
+	
 	const llmById = indexById(llmRows, "LLM output");
 	const mmcIds = new Set<string>();
 	const missingIds: string[] = [];
-	let errorLlmCount = 0;
+	let unavailableCount = 0;
 
 	const merged = mmcRows.map((mmcRow, index) => {
 		const id = getId(mmcRow);
@@ -121,6 +156,17 @@ async function main() {
 		}
 
 		mmcIds.add(id);
+		
+		// If this ID is in the unavailable set, attach empty llm object
+		if (unavailableIds.has(id)) {
+			const { llm: _existingLlm, ...mmcWithoutOldLlm } = mmcRow;
+			unavailableCount += 1;
+			return {
+				...mmcWithoutOldLlm,
+				llm: {},
+			};
+		}
+		
 		const llm = llmById.get(id);
 
 		if (!llm) {
@@ -130,7 +176,7 @@ async function main() {
 
 		const attachedLlm = isErrorEntry(llm) ? {} : llm;
 		if (isErrorEntry(llm)) {
-			errorLlmCount += 1;
+			unavailableCount += 1;
 		}
 
 		const { llm: _existingLlm, ...mmcWithoutOldLlm } = mmcRow;
@@ -142,7 +188,7 @@ async function main() {
 
 	const extraLlmIds = llmRows
 		.map((entry) => getId(entry))
-		.filter((id): id is string => Boolean(id) && !mmcIds.has(id));
+		.filter((id): id is string => typeof id === "string" && !mmcIds.has(id));
 
 	if (missingIds.length > 0 && !allowMissing) {
 		throw new Error(
@@ -158,9 +204,10 @@ async function main() {
 	await writeFile(outputPath, `${JSON.stringify(merged, null, 2)}\n`, "utf8");
 
 	console.log(`MMC rows: ${mmcRows.length}`);
-	console.log(`LLM rows: ${llmRows.length}`);
-	console.log(`Rows with llm: ${mmcRows.length - missingIds.length}`);
-	console.log(`Rows with empty llm from errors: ${errorLlmCount}`);
+	console.log(`LLM output rows: ${llmRows.length}`);
+	console.log(`Unavailable IDs: ${unavailableIds.size}`);
+	console.log(`Rows with actual llm data: ${mmcRows.length - missingIds.length - unavailableCount}`);
+	console.log(`Rows with llm: {} (unavailable): ${unavailableCount}`);
 	console.log(`Rows missing llm: ${missingIds.length}`);
 	console.log(`Extra LLM ids not found in MMC: ${extraLlmIds.length}`);
 	console.log(`Wrote: ${outputPath}`);
