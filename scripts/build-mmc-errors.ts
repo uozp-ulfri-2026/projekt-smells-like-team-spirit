@@ -1,5 +1,5 @@
 import { mkdirSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { dirname, isAbsolute, join } from "node:path";
 
 type ErrorRecord = {
 	_id?: string;
@@ -10,11 +10,19 @@ type CleanedArticle = {
 	[key: string]: unknown;
 };
 
-const workspaceRoot = join(import.meta.dir, "..");
-const cleanedPath = join(workspaceRoot, "assets", "cleaned", "mmc.json");
-const tjasErrorsPath = join(workspaceRoot, "assets", "final", "errors", "tjas-errors.json");
-const tristanErrorsPath = join(workspaceRoot, "assets", "final", "errors", "tristan-errors.json");
-const outputPath = join(workspaceRoot, "assets", "final", "errors", "mmc-errors.json");
+const scriptDir = import.meta.dir;
+
+function resolvePath(inputPath: string): string {
+	if (isAbsolute(inputPath)) {
+		if (/^[\\/]/.test(inputPath) && !/^[a-zA-Z]:[\\/]/.test(inputPath)) {
+			return join(scriptDir, "..", inputPath.slice(1));
+		}
+
+		return inputPath;
+	}
+
+	return join(scriptDir, "..", inputPath);
+}
 
 function collectIds(records: ErrorRecord[]): Set<string> {
 	const ids = new Set<string>();
@@ -33,17 +41,34 @@ async function readJson<T>(filePath: string): Promise<T> {
 }
 
 async function main(): Promise<void> {
+	const [cleanedInputPathArg, outputPathArg, ...errorPathArgs] = process.argv.slice(2);
+
+	if (!cleanedInputPathArg || !outputPathArg || errorPathArgs.length === 0) {
+		console.error(
+			"Usage: bun scripts/build-mmc-errors.ts <cleaned.json> <output.json> <error1.json> [error2.json ...]",
+		);
+		process.exit(1);
+	}
+
+	const cleanedPath = resolvePath(cleanedInputPathArg);
+	const outputPath = resolvePath(outputPathArg);
+	const errorPaths = errorPathArgs.map(resolvePath);
+
 	console.log("📥 Loading error ids...");
 
-	const [tjasErrors, tristanErrors] = await Promise.all([
-		readJson<ErrorRecord[]>(tjasErrorsPath),
-		readJson<ErrorRecord[]>(tristanErrorsPath),
-	]);
+	const errorFiles = await Promise.all(
+		errorPaths.map(async (errorPath) => ({
+			path: errorPath,
+			records: await readJson<ErrorRecord[]>(errorPath),
+		})),
+	);
 
-	const erroredIds = new Set<string>([
-		...collectIds(tjasErrors),
-		...collectIds(tristanErrors),
-	]);
+	const erroredIds = new Set<string>();
+	for (const errorFile of errorFiles) {
+		for (const id of collectIds(errorFile.records)) {
+			erroredIds.add(id);
+		}
+	}
 
 	console.log(`🔎 Found ${erroredIds.size} unique errored ids.`);
 	console.log("📚 Loading cleaned mmc dataset...");
