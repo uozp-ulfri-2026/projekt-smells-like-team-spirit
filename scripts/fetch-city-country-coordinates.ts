@@ -7,6 +7,7 @@ const __dirname = dirname(__filename);
 
 const RATE_LIMIT_MS = 1500;
 const NOMINATIM_BASE_URL = "https://nominatim.openstreetmap.org/search";
+const NOMINATIM_LANGUAGE = process.env.NOMINATIM_LANGUAGE?.trim() || "en";
 
 type CityCountryPair = {
 	city: string;
@@ -61,6 +62,8 @@ function build_search_url(query: string): URL {
 	url.searchParams.set("q", query);
 	url.searchParams.set("format", "jsonv2");
 	url.searchParams.set("limit", "1");
+	url.searchParams.set("addressdetails", "1");
+	url.searchParams.set("accept-language", NOMINATIM_LANGUAGE);
 	const email = process.env.NOMINATIM_EMAIL?.trim();
 	if (email) {
 		url.searchParams.set("email", email);

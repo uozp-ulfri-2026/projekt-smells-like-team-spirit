@@ -12,6 +12,8 @@ type MmcArticle = {
 };
 
 type NominatimResult = {
+	name?: string;
+	display_name?: string;
 	lat?: string;
 	lon?: string;
 };
@@ -43,9 +45,99 @@ type GeoJsonFeatureCollection = {
 	features: GeoJsonFeature[];
 };
 
-type LookupSource = "pair_query" | "just_city";
+type LookupEntry = {
+	result: NominatimResult;
+};
+
+type AggregateEntry = {
+	city: string;
+	country: string;
+	count: number;
+	result: NominatimResult;
+};
 
 const scriptDir = import.meta.dir;
+
+const COUNTRY_NAME_TO_ENGLISH: Record<string, string> = {
+	Afganistan: "Afghanistan",
+	Albanija: "Albania",
+	Alžirija: "Algeria",
+	Andora: "Andorra",
+	Argentina: "Argentina",
+	Armenija: "Armenia",
+	Avstralija: "Australia",
+	Avstrija: "Austria",
+	Belgija: "Belgium",
+	"Bosna in Hercegovina": "Bosnia and Herzegovina",
+	Brazilija: "Brazil",
+	Bolgarija: "Bulgaria",
+	Kanada: "Canada",
+	Češka: "Czechia",
+	Danska: "Denmark",
+	Egipt: "Egypt",
+	Estonija: "Estonia",
+	Finska: "Finland",
+	Francija: "France",
+	Nemčija: "Germany",
+	Grčija: "Greece",
+	Madžarska: "Hungary",
+	Islandija: "Iceland",
+	Indija: "India",
+	Indonezija: "Indonesia",
+	Iran: "Iran",
+	Irak: "Iraq",
+	Irska: "Ireland",
+	Izrael: "Israel",
+	Italija: "Italy",
+	Japonska: "Japan",
+	Jordanija: "Jordan",
+	Kazahstan: "Kazakhstan",
+	Kenija: "Kenya",
+	Kosovo: "Kosovo",
+	Katar: "Qatar",
+	Kirgizistan: "Kyrgyzstan",
+	Latvija: "Latvia",
+	Litva: "Lithuania",
+	Luksemburg: "Luxembourg",
+	Malta: "Malta",
+	Moldavija: "Moldova",
+	Monako: "Monaco",
+	"Črna gora": "Montenegro",
+	Maroko: "Morocco",
+	Nizozemska: "Netherlands",
+	"Nova Zelandija": "New Zealand",
+	Norveška: "Norway",
+	Pakistan: "Pakistan",
+	Palestina: "Palestine",
+	Peru: "Peru",
+	Poljska: "Poland",
+	Portugalska: "Portugal",
+	Romunija: "Romania",
+	Ruanda: "Rwanda",
+	Rusija: "Russia",
+	"Saudova Arabija": "Saudi Arabia",
+	Senegal: "Senegal",
+	Srbija: "Serbia",
+	Singapur: "Singapore",
+	Slovaška: "Slovakia",
+	Slovenija: "Slovenia",
+	Somalija: "Somalia",
+	Španija: "Spain",
+	Švedska: "Sweden",
+	Švica: "Switzerland",
+	Sirija: "Syria",
+	Tajska: "Thailand",
+	Tunizija: "Tunisia",
+	Turčija: "Turkey",
+	Ukrajina: "Ukraine",
+	"Združeni arabski emirati": "United Arab Emirates",
+	"Združeno kraljestvo": "United Kingdom",
+	"Združene države Amerike": "United States of America",
+	Urugvaj: "Uruguay",
+	Venezuela: "Venezuela",
+	Vietnam: "Vietnam",
+	Zimbabve: "Zimbabwe",
+};
 
 function resolvePath(inputPath: string): string {
 	if (isAbsolute(inputPath)) {
@@ -69,32 +161,51 @@ function getPairKey(city: string, country: string): string {
 	return `${city}\u0000${country}`;
 }
 
-function getLookupResult(
-	lookup: NominatimLookup,
-): { source: LookupSource; result: NominatimResult } | null {
-	const pairResult = lookup.pair_query?.results?.[0];
-	if (pairResult) {
-		return { source: "pair_query", result: pairResult };
-	}
+function getFirstResult(lookup: NominatimLookup): NominatimResult | null {
+	return (
+		lookup.pair_query?.results?.[0] ?? lookup.just_city?.results?.[0] ?? null
+	);
+}
 
-	const cityResult = lookup.just_city?.results?.[0];
-	if (cityResult) {
-		return { source: "just_city", result: cityResult };
-	}
+function getDisplayCountry(displayName: string | undefined): string | null {
+	const normalized = normalizeText(displayName);
+	if (!normalized) return null;
 
-	return null;
+	const parts = normalized
+		.split(",")
+		.map((part) => part.trim())
+		.filter((part) => part.length > 0);
+
+	return parts.at(-1) ?? null;
+}
+
+function toEnglishCountryName(country: string | null): string | null {
+	if (!country) return null;
+	return COUNTRY_NAME_TO_ENGLISH[country] ?? country;
+}
+
+function getFeatureLabels(result: NominatimResult): {
+	city: string;
+	country: string;
+} {
+	const rawCity = normalizeText(result.name) ?? "Unknown";
+	const city = COUNTRY_NAME_TO_ENGLISH[rawCity] ?? rawCity;
+	const country =
+		toEnglishCountryName(getDisplayCountry(result.display_name)) ?? "Unknown";
+
+	return { city, country };
 }
 
 function toCoordinatePair(
 	result: NominatimResult,
-	pairLabel: string,
+	label: string,
 ): [number, number] {
 	const lon = Number(result.lon);
 	const lat = Number(result.lat);
 
 	if (!Number.isFinite(lon) || !Number.isFinite(lat)) {
 		throw new Error(
-			`Nominatim result for ${pairLabel} is missing valid lat/lon values.`,
+			`Nominatim result for ${label} is missing valid lat/lon values.`,
 		);
 	}
 
@@ -115,7 +226,7 @@ async function main(): Promise<void> {
 				"  bun scripts/build-city-country-geojson.ts <mmc-llm.json> <nominatim.json> <output.geojson>",
 				"",
 				"Example:",
-				"  bun scripts/build-city-country-geojson.ts assets/mmc-llm.json assets/mmc-city-country-nominatim.json assets/mmc-city-country.geojson",
+				"  bun scripts/build-city-country-geojson.ts assets/mmc-llm.json assets/mmc-city-country-nominatim.json assets/output.geojson",
 			].join("\n"),
 		);
 		process.exit(1);
@@ -127,13 +238,16 @@ async function main(): Promise<void> {
 
 	console.log("📥 Loading MMC articles...");
 	const mmcRows = (await readJson<MmcArticle[]>(mmcPath)).filter(
-		(article): article is MmcArticle & { llm: LlmLocation } =>
-			typeof article.llm === "object" &&
-			article.llm !== null &&
-			typeof article.llm.city === "string" &&
-			article.llm.city.trim().length > 0 &&
-			typeof article.llm.country === "string" &&
-			article.llm.country.trim().length > 0,
+		(article): article is MmcArticle & { llm: LlmLocation } => {
+			return (
+				typeof article.llm === "object" &&
+				article.llm !== null &&
+				typeof article.llm.city === "string" &&
+				article.llm.city.trim().length > 0 &&
+				typeof article.llm.country === "string" &&
+				article.llm.country.trim().length > 0
+			);
+		},
 	);
 
 	console.log("📥 Loading Nominatim lookups...");
@@ -142,78 +256,79 @@ async function main(): Promise<void> {
 			Array<{ city?: string; country?: string } & NominatimLookup>
 		>(nominatimPath);
 
-	const lookupByPair = new Map<
-		string,
-		{ source: LookupSource; result: NominatimResult }
-	>();
-	for (const [index, row] of nominatimRows.entries()) {
-		const city = normalizeText(row.city);
-		const country = normalizeText(row.country);
-		if (!city || !country) {
-			throw new Error(
-				`Nominatim entry at index ${index} is missing a city or country.`,
-			);
-		}
+	const lookupByQueryPair = new Map<string, LookupEntry>();
+	let missingLookupRows = 0;
 
-		const lookup = getLookupResult(row);
-		if (!lookup) {
-			// throw new Error(`Nominatim entry for ${city}, ${country} has no usable lookup results.`);
+	for (const [index, row] of nominatimRows.entries()) {
+		const queryCity = normalizeText(row.city);
+		const queryCountry = normalizeText(row.country);
+
+		if (!queryCity || !queryCountry) {
 			console.warn(
-				`⚠️ Nominatim entry for ${city}, ${country} has no usable lookup results. Skipping.`,
+				`⚠️ Nominatim row ${index} is missing a city or country. Skipping.`,
 			);
+			missingLookupRows += 1;
 			continue;
 		}
 
-		lookupByPair.set(getPairKey(city, country), lookup);
+		const result = getFirstResult(row);
+		if (!result) {
+			console.warn(
+				`⚠️ Nominatim row for ${queryCity}, ${queryCountry} has no usable results. Skipping.`,
+			);
+			missingLookupRows += 1;
+			continue;
+		}
+
+		lookupByQueryPair.set(getPairKey(queryCity, queryCountry), { result });
 	}
 
-	const aggregated = new Map<
-		string,
-		{
-			city: string;
-			country: string;
-			count: number;
-			lookup: { source: LookupSource; result: NominatimResult };
-		}
-	>();
+	const aggregated = new Map<string, AggregateEntry>();
+	let skippedMmcRows = 0;
 
 	for (const [index, article] of mmcRows.entries()) {
-		const city = normalizeText(article.llm.city);
-		const country = normalizeText(article.llm.country);
+		const queryCity = normalizeText(article.llm.city);
+		const queryCountry = normalizeText(article.llm.country);
 
-		if (!city || !country) {
-			throw new Error(
-				`MMC entry at index ${index} is missing llm.city or llm.country.`,
-			);
-		}
-
-		const key = getPairKey(city, country);
-		const lookup = lookupByPair.get(key);
-		if (!lookup) {
-			// throw new Error(`No Nominatim lookup found for ${city}, ${country}.`);
+		if (!queryCity || !queryCountry) {
 			console.warn(
-				`⚠️ No Nominatim lookup found for ${city}, ${country}. Skipping.`,
+				`⚠️ MMC row ${index} is missing llm.city or llm.country. Skipping.`,
 			);
+			skippedMmcRows += 1;
 			continue;
 		}
 
-		const existing = aggregated.get(key);
+		const lookupEntry = lookupByQueryPair.get(
+			getPairKey(queryCity, queryCountry),
+		);
+		if (!lookupEntry) {
+			console.warn(
+				`⚠️ No Nominatim result for ${queryCity}, ${queryCountry}. Skipping.`,
+			);
+			skippedMmcRows += 1;
+			continue;
+		}
+
+		const labels = getFeatureLabels(lookupEntry.result);
+		const aggregateKey = getPairKey(labels.city, labels.country);
+		const existing = aggregated.get(aggregateKey);
+
 		if (existing) {
 			existing.count += 1;
 			continue;
 		}
 
-		aggregated.set(key, {
-			city,
-			country,
+		aggregated.set(aggregateKey, {
+			city: labels.city,
+			country: labels.country,
 			count: 1,
-			lookup,
+			result: lookupEntry.result,
 		});
 	}
 
 	const features: GeoJsonFeature[] = [...aggregated.values()].map((entry) => {
 		const coordinates = toCoordinatePair(
-			entry.lookup.result,
+			entry.result,
 			`${entry.city}, ${entry.country}`,
 		);
 
@@ -240,9 +355,11 @@ async function main(): Promise<void> {
 	await Bun.write(outputPath, `${JSON.stringify(geojson, null, 2)}\n`);
 
 	console.log(`✅ Wrote ${features.length} GeoJSON features to ${outputPath}`);
+	console.log(
+		`ℹ️ Skipped ${skippedMmcRows} MMC rows and ${missingLookupRows} Nominatim rows.`,
+	);
 }
 
-// bun run .\scripts\build-city-country-geojson.ts .\assets\mmc-llm.json .\assets\mmc-city-country-nominatim.json .\assets\output.geojson
 main().catch((error) => {
 	console.error(
 		"❌ Failed to build GeoJSON:",

@@ -12,7 +12,7 @@
       },
       "properties": {
         "city": "Kabul",
-        "country": "Afganistan",
+        "country": "Afghanistan",
         "count": 12
       }
     },
@@ -27,7 +27,7 @@
       },
       "properties": {
         "city": "Berlin",
-        "country": "Amerika",
+        "country": "United States of America",
         "count": 1
       }
     },
@@ -41,8 +41,8 @@
         ]
       },
       "properties": {
-        "city": "Fajzabad",
-        "country": "Afganistan",
+        "city": "ولسوالی فیض‌آباد",
+        "country": "Afghanistan",
         "count": 1
       }
     },
@@ -56,8 +56,8 @@
         ]
       },
       "properties": {
-        "city": "Sar-e-Pul",
-        "country": "Afganistan",
+        "city": "سرپل",
+        "country": "Afghanistan",
         "count": 1
       }
     },
@@ -71,8 +71,8 @@
         ]
       },
       "properties": {
-        "city": "Tamanrasset",
-        "country": "Alžirija",
+        "city": "Tamanrasset ⵜⴰⵎⴻⵏⵖⴻⵙⵜ تمنراست",
+        "country": "Algeria",
         "count": 1
       }
     },
@@ -86,8 +86,8 @@
         ]
       },
       "properties": {
-        "city": "Maidan Wardak",
-        "country": "Afganistan",
+        "city": "ميدان وردگ ولايت",
+        "country": "Afghanistan",
         "count": 1
       }
     },
@@ -101,8 +101,8 @@
         ]
       },
       "properties": {
-        "city": "Herat",
-        "country": "Afganistan",
+        "city": "هرات",
+        "country": "Afghanistan",
         "count": 7
       }
     },
@@ -117,8 +117,8 @@
       },
       "properties": {
         "city": "Tirana",
-        "country": "Albanija",
-        "count": 18
+        "country": "Albania",
+        "count": 22
       }
     },
     {
@@ -132,7 +132,7 @@
       },
       "properties": {
         "city": "Devizes",
-        "country": "Anglija",
+        "country": "United Kingdom",
         "count": 1
       }
     },
@@ -147,7 +147,7 @@
       },
       "properties": {
         "city": "Dartford",
-        "country": "Anglija",
+        "country": "United Kingdom",
         "count": 1
       }
     },
@@ -162,23 +162,8 @@
       },
       "properties": {
         "city": "Tržaški zaliv",
-        "country": "Amerika",
+        "country": "Italy",
         "count": 1
-      }
-    },
-    {
-      "type": "Feature",
-      "geometry": {
-        "type": "Point",
-        "coordinates": [
-          19.8184435,
-          41.3281482
-        ]
-      },
-      "properties": {
-        "city": "Tirana",
-        "country": "Albanska",
-        "count": 3
       }
     },
     {
@@ -191,8 +176,8 @@
         ]
       },
       "properties": {
-        "city": "Helmand",
-        "country": "Afganistan",
+        "city": "هلمند ولايت",
+        "country": "Afghanistan",
         "count": 1
       }
     },
@@ -206,8 +191,8 @@
         ]
       },
       "properties": {
-        "city": "Kucova",
-        "country": "Albanija",
+        "city": "Baza Ajrore Kuçovë",
+        "country": "Albania",
         "count": 1
       }
     },
@@ -222,7 +207,7 @@
       },
       "properties": {
         "city": "Pariz",
-        "country": "Američsko",
+        "country": "France",
         "count": 1
       }
     },
@@ -237,7 +222,7 @@
       },
       "properties": {
         "city": "Alžir",
-        "country": "Alžirija",
+        "country": "Algeria",
         "count": 5
       }
     },
@@ -252,23 +237,8 @@
       },
       "properties": {
         "city": "Soldeu",
-        "country": "Andor",
-        "count": 2
-      }
-    },
-    {
-      "type": "Feature",
-      "geometry": {
-        "type": "Point",
-        "coordinates": [
-          1.6682694,
-          42.5768944
-        ]
-      },
-      "properties": {
-        "city": "Soldeu",
-        "country": "Andora",
-        "count": 1
+        "country": "Andorra",
+        "count": 3
       }
     },
     {
@@ -282,7 +252,7 @@
       },
       "properties": {
         "city": "Coningsby",
-        "country": "Anglija",
+        "country": "United Kingdom",
         "count": 1
       }
     },
@@ -296,8 +266,8 @@
         ]
       },
       "properties": {
-        "city": "Kair",
-        "country": "Amerika",
+        "city": "KAIR-AM (Tucson)",
+        "country": "United States of America",
         "count": 1
       }
     },
@@ -311,8 +281,8 @@
         ]
       },
       "properties": {
-        "city": "El Tarf",
-        "country": "Alžirija",
+        "city": "El Tarf ⵟⵟⴰⵔⴻⴼ الطارف",
+        "country": "Algeria",
         "count": 1
       }
     },
@@ -327,7 +297,7 @@
       },
       "properties": {
         "city": "Chester",
-        "country": "Anglija",
+        "country": "United Kingdom",
         "count": 1
       }
     },
@@ -342,7 +312,7 @@
       },
       "properties": {
         "city": "Berat",
-        "country": "Albanija",
+        "country": "Albania",
         "count": 1
       }
     },
@@ -356,8 +326,8 @@
         ]
       },
       "properties": {
-        "city": "Gazni",
-        "country": "Afganistan",
+        "city": "غزنی",
+        "country": "Afghanistan",
         "count": 1
       }
     },
@@ -371,8 +341,8 @@
         ]
       },
       "properties": {
-        "city": "Permet",
-        "country": "Albanija",
+        "city": "Përmet",
+        "country": "Albania",
         "count": 1
       }
     },
@@ -386,8 +356,8 @@
         ]
       },
       "properties": {
-        "city": "Baglan",
-        "country": "Afganistan",
+        "city": "ولایت بغلان",
+        "country": "Afghanistan",
         "count": 1
       }
     },
@@ -401,8 +371,8 @@
         ]
       },
       "properties": {
-        "city": "Bamijan",
-        "country": "Afganistan",
+        "city": "ولایت بامیان",
+        "country": "Afghanistan",
         "count": 2
       }
     },
@@ -416,8 +386,8 @@
         ]
       },
       "properties": {
-        "city": "Shengjin",
-        "country": "Albanija",
+        "city": "Shëngjin",
+        "country": "Albania",
         "count": 3
       }
     },
@@ -432,23 +402,8 @@
       },
       "properties": {
         "city": "Hamburg",
-        "country": "Albanija",
-        "count": 1
-      }
-    },
-    {
-      "type": "Feature",
-      "geometry": {
-        "type": "Point",
-        "coordinates": [
-          10.0013165,
-          53.5501721
-        ]
-      },
-      "properties": {
-        "city": "Hamburg",
-        "country": "Albanska",
-        "count": 1
+        "country": "Germany",
+        "count": 2
       }
     },
     {
@@ -462,7 +417,7 @@
       },
       "properties": {
         "city": "Doha",
-        "country": "Afganistan",
+        "country": "Qatar",
         "count": 2
       }
     },
@@ -476,24 +431,9 @@
         ]
       },
       "properties": {
-        "city": "Pal Arinsal",
-        "country": "Andor",
-        "count": 1
-      }
-    },
-    {
-      "type": "Feature",
-      "geometry": {
-        "type": "Point",
-        "coordinates": [
-          1.4495827,
-          42.552408
-        ]
-      },
-      "properties": {
-        "city": "Pal Arinsal",
-        "country": "Andora",
-        "count": 2
+        "city": "Pal-Arinsal",
+        "country": "Andorra",
+        "count": 3
       }
     },
     {
@@ -506,8 +446,8 @@
         ]
       },
       "properties": {
-        "city": "Gjader",
-        "country": "Albanija",
+        "city": "Gjadër",
+        "country": "Albania",
         "count": 2
       }
     },
@@ -521,8 +461,8 @@
         ]
       },
       "properties": {
-        "city": "Riad",
-        "country": "Amerika",
+        "city": "Riad Street",
+        "country": "United States of America",
         "count": 1
       }
     },
@@ -537,7 +477,7 @@
       },
       "properties": {
         "city": "Kigali",
-        "country": "Afrika",
+        "country": "Rwanda",
         "count": 1
       }
     },
@@ -551,8 +491,8 @@
         ]
       },
       "properties": {
-        "city": "Alžir",
-        "country": "Alžirsko",
+        "city": "Algeria",
+        "country": "Algeria",
         "count": 1
       }
     },
@@ -566,8 +506,8 @@
         ]
       },
       "properties": {
-        "city": "Kunar",
-        "country": "Afganistan",
+        "city": "کونړ ولايت",
+        "country": "Afghanistan",
         "count": 1
       }
     },
@@ -581,8 +521,8 @@
         ]
       },
       "properties": {
-        "city": "Asadabad",
-        "country": "Afganistan",
+        "city": "اسد آباد ولسوالۍ",
+        "country": "Afghanistan",
         "count": 1
       }
     },
@@ -597,7 +537,7 @@
       },
       "properties": {
         "city": "Strikçan",
-        "country": "Albanija",
+        "country": "Albania",
         "count": 1
       }
     },
@@ -612,7 +552,7 @@
       },
       "properties": {
         "city": "Kairo",
-        "country": "Afrika",
+        "country": "Egypt",
         "count": 1
       }
     },
@@ -626,8 +566,8 @@
         ]
       },
       "properties": {
-        "city": "Mazar-e-Šarif",
-        "country": "Afganistan",
+        "city": "مزار شريف",
+        "country": "Afghanistan",
         "count": 1
       }
     },
@@ -641,23 +581,8 @@
         ]
       },
       "properties": {
-        "city": "Cardiff",
-        "country": "Anglija",
-        "count": 1
-      }
-    },
-    {
-      "type": "Feature",
-      "geometry": {
-        "type": "Point",
-        "coordinates": [
-          19.8184435,
-          41.3281482
-        ]
-      },
-      "properties": {
-        "city": "Tirana",
-        "country": "Albanska republika",
+        "city": "Walton Cardiff",
+        "country": "United Kingdom",
         "count": 1
       }
     },
@@ -672,7 +597,7 @@
       },
       "properties": {
         "city": "Birmingham",
-        "country": "Anglija",
+        "country": "United Kingdom",
         "count": 1
       }
     },
@@ -686,8 +611,8 @@
         ]
       },
       "properties": {
-        "city": "Alžirija",
-        "country": "Afrika",
+        "city": "Africa/Algiers timezone",
+        "country": "Algeria",
         "count": 1
       }
     },
@@ -702,7 +627,7 @@
       },
       "properties": {
         "city": "Bristol",
-        "country": "Anglija",
+        "country": "United Kingdom",
         "count": 2
       }
     },
@@ -717,7 +642,7 @@
       },
       "properties": {
         "city": "Bath",
-        "country": "Anglija",
+        "country": "United Kingdom",
         "count": 1
       }
     }
