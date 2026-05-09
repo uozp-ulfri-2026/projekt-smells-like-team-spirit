@@ -29,6 +29,10 @@ function getId(value: JsonObject): string | undefined {
 		: undefined;
 }
 
+function isErrorEntry(value: JsonObject): boolean {
+	return "error" in value;
+}
+
 async function readJsonArray(path: string): Promise<JsonObject[]> {
 	const raw = await readFile(path, "utf8");
 	const parsed = JSON.parse(raw) as unknown;
@@ -61,7 +65,27 @@ function indexById(entries: JsonObject[], label: string): Map<string, JsonObject
 		}
 
 		if (byId.has(id)) {
-			throw new Error(`${label} contains duplicate _id: ${id}.`);
+			const existing = byId.get(id);
+			if (!existing) {
+				throw new Error(`${label} contains duplicate _id: ${id}.`);
+			}
+
+			const existingIsError = isErrorEntry(existing);
+			const currentIsError = isErrorEntry(entry);
+
+			if (existingIsError && !currentIsError) {
+				byId.set(id, entry);
+			}
+
+			if (!existingIsError && currentIsError) {
+				continue;
+			}
+
+			if (existingIsError && currentIsError) {
+				continue;
+			}
+
+			throw new Error(`${label} contains duplicate processed _id: ${id}.`);
 		}
 
 		byId.set(id, entry);
@@ -87,6 +111,7 @@ async function main() {
 	const llmById = indexById(llmRows, "LLM output");
 	const mmcIds = new Set<string>();
 	const missingIds: string[] = [];
+	let errorLlmCount = 0;
 
 	const merged = mmcRows.map((mmcRow, index) => {
 		const id = getId(mmcRow);
@@ -103,10 +128,15 @@ async function main() {
 			return mmcRow;
 		}
 
+		const attachedLlm = isErrorEntry(llm) ? {} : llm;
+		if (isErrorEntry(llm)) {
+			errorLlmCount += 1;
+		}
+
 		const { llm: _existingLlm, ...mmcWithoutOldLlm } = mmcRow;
 		return {
 			...mmcWithoutOldLlm,
-			llm,
+			llm: attachedLlm,
 		};
 	});
 
@@ -130,6 +160,7 @@ async function main() {
 	console.log(`MMC rows: ${mmcRows.length}`);
 	console.log(`LLM rows: ${llmRows.length}`);
 	console.log(`Rows with llm: ${mmcRows.length - missingIds.length}`);
+	console.log(`Rows with empty llm from errors: ${errorLlmCount}`);
 	console.log(`Rows missing llm: ${missingIds.length}`);
 	console.log(`Extra LLM ids not found in MMC: ${extraLlmIds.length}`);
 	console.log(`Wrote: ${outputPath}`);
