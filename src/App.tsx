@@ -1,5 +1,5 @@
+import { Map as MapComponent, MapControls } from "./components/map";
 import { Card } from "./components/ui/card";
-import { Map as MapComponent, MapControls } from "./components/ui/map";
 
 export default function App() {
   return (
