@@ -157,7 +157,13 @@ async function appendSavedResult(
 		results = JSON.parse(existing) as SavedExtraction[];
 	}
 
-	results.push(entry);
+	const existingIndex = results.findIndex((result) => result._id === entry._id);
+	if (existingIndex >= 0) {
+		results[existingIndex] = entry;
+	} else {
+		results.push(entry);
+	}
+
 	await writeFile(outputPath, JSON.stringify(results, null, 2), "utf8");
 }
 
@@ -299,23 +305,52 @@ Output:
 async function run_extraction() {
 	const file_path = process.argv[2]
 		? process.argv[2]
-		: new URL("../assets/cleaned/mmc-10.json", import.meta.url);
+		: new URL("../assets/cleaned/mmc-part-1.json", import.meta.url);
 	const current_offset = 0;
+	const resume_from_id = process.argv[3];
+	const output_index = process.argv[4]
+		? Number(process.argv[4])
+		: resume_from_id
+			? 0
+			: getNextRunIndex();
+
+	if (!Number.isInteger(output_index) || output_index < 0) {
+		throw new Error("Output index must be a non-negative integer.");
+	}
 
 	try {
 		console.log(`📂 Loading articles...`);
 
-		const { total_articles, articles } = await load_articles(
+		const { total_articles, articles: loaded_articles } = await load_articles(
 			file_path,
 			current_offset,
 		);
+
+		let articles = loaded_articles;
+		let resume_start_index = 0;
+
+		if (resume_from_id) {
+			const found_index = loaded_articles.findIndex(
+				(article) => article._id === resume_from_id,
+			);
+
+			if (found_index < 0) {
+				throw new Error(`Resume _id not found in input file: ${resume_from_id}`);
+			}
+
+			resume_start_index = found_index;
+			articles = loaded_articles.slice(found_index);
+			console.log(
+				`Resuming from _id ${resume_from_id} at article ${current_offset + found_index + 1}.`,
+			);
+		}
 
 		console.log(`📊 Found a total of ${total_articles} articles in dataset.`);
 		console.log(
 			`Processing all articles (Offset: ${current_offset}, Count: ${articles.length})...\n`,
 		);
 
-		const runIndex = getNextRunIndex();
+		const runIndex = output_index;
 		const outputPath = getOutputPathForIndex(runIndex);
 		console.log(`📝 Output file: ${outputPath}`);
 
@@ -323,7 +358,7 @@ async function run_extraction() {
 		let processed_articles = 0;
 
 		for (const [index, article] of articles.entries()) {
-			const global_index = current_offset + index + 1;
+			const global_index = current_offset + resume_start_index + index + 1;
 
 			if (!article.text) {
 				console.log(`⚠️  Article ${global_index} is empty, skipping...`);
