@@ -1,9 +1,25 @@
 "use client"
 
 import React, { useEffect, useState } from "react"
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card"
+import { Separator } from "@/components/ui/separator"
+
+type LeanArticle = {
+  _id: string
+  url?: string
+  date?: string
+  "llm-topic"?: string
+  title?: string
+  lead?: string
+}
 
 export default function ArticleCard({ id, onClose }: { id: string | null; onClose?: () => void }) {
-  const [article, setArticle] = useState<any | null>(null)
+  const [article, setArticle] = useState<LeanArticle | null>(null)
 
   useEffect(() => {
     if (!id) {
@@ -11,14 +27,14 @@ export default function ArticleCard({ id, onClose }: { id: string | null; onClos
       return
     }
 
-    fetch("/assets/mmc-llm.json")
+    fetch("/mmc-lean.json")
       .then((r) => r.json())
-      .then((rows: any[]) => {
+      .then((rows: LeanArticle[]) => {
         try {
           const found = rows.find((r) => r._id === id) ?? null
           if (!found) {
             // eslint-disable-next-line no-console
-            console.debug("Article not found in mmc-llm.json for id:", id)
+            console.debug("Article not found in mmc-lean.json for id:", id)
           }
           return found
         } catch (err) {
@@ -30,7 +46,7 @@ export default function ArticleCard({ id, onClose }: { id: string | null; onClos
       .then((a) => setArticle(a))
       .catch((err) => {
         // eslint-disable-next-line no-console
-        console.error("Failed to fetch mmc-llm.json:", err)
+        console.error("Failed to fetch mmc-lean.json:", err)
         setArticle(null)
       })
   }, [id])
@@ -38,11 +54,10 @@ export default function ArticleCard({ id, onClose }: { id: string | null; onClos
   if (!id) return null
 
   return (
-    <div className="absolute top-4 right-4 z-20 h-[90vh] w-96 bg-white dark:bg-slate-950 rounded-lg shadow-lg border border-gray-200 dark:border-slate-800 overflow-hidden flex flex-col">
-      {/* Close Button */}
+    <Card className="absolute top-4 right-4 z-20 h-[90vh] w-96 border overflow-hidden shadow-lg">
       <button
         onClick={onClose}
-        className="absolute top-2 left-2 z-30 p-1 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 rounded hover:bg-gray-100 dark:hover:bg-slate-800 transition"
+        className="absolute top-2 left-2 z-30 p-1 rounded text-muted-foreground hover:text-foreground hover:bg-accent transition"
         aria-label="Close article"
       >
         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -51,85 +66,40 @@ export default function ArticleCard({ id, onClose }: { id: string | null; onClos
       </button>
 
       <div className="flex-1 overflow-y-auto">
-        <div className="p-6">
-          {!article && (
-            <div className="text-sm text-gray-500">Loading article…</div>
-          )}
-          {article && (
-            <div className="space-y-4">
-              {/* Title */}
-              <div>
-                <h2 className="text-xl font-bold text-gray-900 dark:text-white leading-tight">
-                  {(article.title as string) ?? "Untitled"}
-                </h2>
-                {article.llm?.topic && (
-                  <p className="text-xs font-semibold text-blue-600 dark:text-blue-400 mt-1 uppercase tracking-wide">
-                    {article.llm.topic}
-                  </p>
-                )}
-                {article.authors && article.authors.length > 0 && (
-                  <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                    By {article.authors.join(", ")}
-                  </p>
-                )}
-                {article.date && (
-                  <p className="text-xs text-gray-500 dark:text-gray-500 mt-1">
-                    {new Date(article.date).toLocaleDateString()}
-                  </p>
-                )}
-              </div>
-
-              {/* Separator */}
-              <div className="border-t border-gray-300 dark:border-slate-700" />
-
-              {/* URL Link */}
+        {!article && <CardContent className="pt-4 text-sm text-muted-foreground">Loading article...</CardContent>}
+        {article && (
+          <>
+            <CardHeader className="pt-8">
+              <CardTitle className="text-base leading-tight">{article.title?.trim() || "Untitled"}</CardTitle>
+              {article["llm-topic"] && (
+                <p className="text-xs font-semibold text-blue-600 uppercase tracking-wide">
+                  {article["llm-topic"]}
+                </p>
+              )}
+              {article.date && (
+                <p className="text-xs text-muted-foreground">{new Date(article.date).toLocaleDateString()}</p>
+              )}
+            </CardHeader>
+            <Separator />
+            <CardContent className="pt-4 space-y-4">
               {article.url && (
-                <div>
-                  <a
-                    href={article.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-sm text-blue-600 dark:text-blue-400 hover:underline break-all"
-                  >
-                    Preberi originalni članek
-                  </a>  
-                </div>
+                <a
+                  href={article.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-sm text-blue-600 hover:underline break-all"
+                >
+                  Preberi originalni clanek
+                </a>
               )}
-
-              {/* Separator */}
-              <div className="border-t border-gray-300 dark:border-slate-700" />
-
-              {/* Lead/Abstract */}
-              {article.lead && (
-                <div>
-                  <p className="text-sm text-gray-700 dark:text-gray-300 italic">
-                    {article.lead}
-                  </p>
-                </div>
-              )}
-
-              {/* Separator */}
-              {article.lead && <div className="border-t border-gray-300 dark:border-slate-700" />}
-
-              {/* Paragraphs */}
-              {article.paragraphs && article.paragraphs.length > 0 && (
-                <div className="space-y-3">
-                  {article.paragraphs.map((para: string, idx: number) => (
-                    <p key={idx} className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed">
-                      {para}
-                    </p>
-                  ))}
-                </div>
-              )}
-
-              {/* Article ID (for debugging) */}
-              <div className="pt-4 border-t border-gray-300 dark:border-slate-700">
-                <p className="text-xs text-gray-500 dark:text-gray-500">ID: {article._id}</p>
-              </div>
-            </div>
-          )}
-        </div>
+              <Separator />
+              {article.lead && <p className="text-sm italic text-muted-foreground">{article.lead}</p>}
+              <Separator />
+              <p className="text-xs text-muted-foreground">ID: {article._id}</p>
+            </CardContent>
+          </>
+        )}
       </div>
-    </div>
+    </Card>
   )
 }

@@ -8,7 +8,8 @@
 		"build": "tsc -b && vite build",
 		"lint": "tsc && eslint .  --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
 		"preview": "vite preview",
-		"ui": "bunx --bun shadcn@latest"
+		"ui": "bunx --bun shadcn@latest",
+		"build:mmc-lean": "bun scripts/build-mmc-lean.ts"
 	},
 	"dependencies": {
 		"@ai-sdk/openai": "^3.0.63",
