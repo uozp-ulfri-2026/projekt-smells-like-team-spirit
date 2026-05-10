@@ -118,14 +118,7 @@ async function run(): Promise<void> {
 		join(__dirname, "..", "assets", "mmc-city-country-pairs.json");
 	const output_file =
 		process.argv[3] ??
-		join(__dirname, "..", "assets", "mmc-city-country-nominatim1.json");
-	const start_index = Number.parseInt(process.argv[4] ?? "0", 10);
-
-	if (!Number.isInteger(start_index) || start_index < 0) {
-		throw new Error(
-			`Start index must be a non-negative integer. Received: ${process.argv[4]}`,
-		);
-	}
+		join(__dirname, "..", "assets", "mmc-city-country-nominatim2.json");
 
 	const raw_text = await readFile(input_file, "utf8");
 	const parsed = JSON.parse(raw_text) as unknown;
@@ -149,7 +142,7 @@ async function run(): Promise<void> {
 	// const queries_length = 50;
 	const queries_length = valid_pairs.length;
 
-	for (let index = start_index; index < queries_length; index += 1) {
+	for (let index = 2370 - 3; index < 3010; index += 1) {
 		const pair = valid_pairs[index];
 		const pair_query = `${pair.city}, ${pair.country}`;
 		const just_city_query = pair.city;

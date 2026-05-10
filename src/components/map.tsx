@@ -182,6 +182,7 @@ const Map = forwardRef<MapRef, MapProps>(function Map(
 ) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [mapInstance, setMapInstance] = useState<MapLibreGL.Map | null>(null);
+  const [mapError, setMapError] = useState<string | null>(null);
   const [isLoaded, setIsLoaded] = useState(false);
   const [isStyleLoaded, setIsStyleLoaded] = useState(false);
   const currentStyleRef = useRef<MapStyleOption | null>(null);
@@ -220,16 +221,24 @@ const Map = forwardRef<MapRef, MapProps>(function Map(
       resolvedTheme === "dark" ? mapStyles.dark : mapStyles.light;
     currentStyleRef.current = initialStyle;
 
-    const map = new MapLibreGL.Map({
-      container: containerRef.current,
-      style: initialStyle,
-      renderWorldCopies: false,
-      attributionControl: {
-        compact: true,
-      },
-      ...props,
-      ...viewport,
-    });
+    let map: MapLibreGL.Map;
+    try {
+      map = new MapLibreGL.Map({
+        container: containerRef.current,
+        style: initialStyle,
+        renderWorldCopies: false,
+        attributionControl: {
+          compact: true,
+        },
+        ...props,
+        ...viewport,
+      });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error("Map initialization error:", err);
+      setMapError(msg);
+      return;
+    }
 
     const styleDataHandler = () => {
       clearStyleTimeout();
@@ -328,6 +337,14 @@ const Map = forwardRef<MapRef, MapProps>(function Map(
         className={cn("relative h-full w-full", className)}
       >
         {(!isLoaded || loading) && <DefaultLoader />}
+        {mapError && (
+          <div className="absolute inset-0 z-50 flex items-center justify-center bg-red-50/80">
+            <div className="rounded-md border bg-red-100 p-4 text-sm text-red-900">
+              <div className="font-medium">Map error</div>
+              <div className="mt-1">{mapError}</div>
+            </div>
+          </div>
+        )}
         {/* SSR-safe: children render only when map is loaded on client */}
         {mapInstance && children}
       </div>
