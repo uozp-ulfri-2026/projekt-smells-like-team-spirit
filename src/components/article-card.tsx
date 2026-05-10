@@ -19,7 +19,27 @@ type LeanArticle = {
 }
 
 export default function ArticleCard({ id, onClose }: { id: string | null; onClose?: () => void }) {
+  const [articlesById, setArticlesById] = useState<Record<string, LeanArticle>>({})
   const [article, setArticle] = useState<LeanArticle | null>(null)
+
+  useEffect(() => {
+    fetch("/mmc-lean.json")
+      .then((r) => r.json())
+      .then((rows: LeanArticle[]) => {
+        const byId: Record<string, LeanArticle> = {}
+        for (const row of rows) {
+          if (row && typeof row._id === "string") {
+            byId[row._id] = row
+          }
+        }
+        setArticlesById(byId)
+      })
+      .catch((err) => {
+        // eslint-disable-next-line no-console
+        console.error("Failed to fetch mmc-lean.json:", err)
+        setArticlesById({})
+      })
+  }, [])
 
   useEffect(() => {
     if (!id) {
@@ -27,29 +47,13 @@ export default function ArticleCard({ id, onClose }: { id: string | null; onClos
       return
     }
 
-    fetch("/mmc-lean.json")
-      .then((r) => r.json())
-      .then((rows: LeanArticle[]) => {
-        try {
-          const found = rows.find((r) => r._id === id) ?? null
-          if (!found) {
-            // eslint-disable-next-line no-console
-            console.debug("Article not found in mmc-lean.json for id:", id)
-          }
-          return found
-        } catch (err) {
-          // eslint-disable-next-line no-console
-          console.error("Error finding article:", err)
-          return null
-        }
-      })
-      .then((a) => setArticle(a))
-      .catch((err) => {
-        // eslint-disable-next-line no-console
-        console.error("Failed to fetch mmc-lean.json:", err)
-        setArticle(null)
-      })
-  }, [id])
+    const found = articlesById[id] ?? null
+    if (!found) {
+      // eslint-disable-next-line no-console
+      console.debug("Article not found in mmc-lean.json for id:", id)
+    }
+    setArticle(found)
+  }, [id, articlesById])
 
   if (!id) return null
 

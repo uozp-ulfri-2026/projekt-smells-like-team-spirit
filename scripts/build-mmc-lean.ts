@@ -20,6 +20,48 @@ type LeanArticle = {
   lead?: string;
 };
 
+const TOPIC_SL_MAP: Record<string, string> = {
+  DRUGO: "DRUGO",
+  GASTRONOMIJA: "GASTRONOMIJA",
+  GOSPODARSTVO: "GOSPODARSTVO",
+  KRIMINAL: "KRIMINAL",
+  KULTURA: "KULTURA",
+  NARAVNE_NESRECE: "NARAVNE NESREČE",
+  OKOLJE: "OKOLJE",
+  POLITIKA: "POLITIKA",
+  PROMETNE_NESRECE: "PROMETNE NESREČE",
+  SPORT: "ŠPORT",
+  TEHNOLOGIJA: "TEHNOLOGIJA",
+  TURIZEM: "TURIZEM",
+  VOJNA_IN_KONFLIKTI: "VOJNA IN KONFLIKTI",
+  ZABAVA: "ZABAVA",
+  ZDRAVJE: "ZDRAVJE",
+};
+
+function normalizeTopicKey(value: string): string {
+  return value
+    .trim()
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/\s+/g, "_")
+    .toUpperCase();
+}
+
+function mapTopicToSlovenian(topic: unknown): string | undefined {
+  const str = asOptionalString(topic);
+  if (!str) return undefined;
+  const mapped = TOPIC_SL_MAP[normalizeTopicKey(str)];
+  if (mapped) return mapped;
+
+  // Fallback keeps readability for unseen topics.
+  return str
+    .replace(/_/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLowerCase()
+    .replace(/(^|\s)\S/g, (c) => c.toUpperCase());
+}
+
 function asOptionalString(value: unknown): string | undefined {
   if (typeof value === "string") {
     const trimmed = value.trim();
@@ -48,7 +90,7 @@ async function main() {
       _id,
       url: asOptionalString(row?.url),
       date: asOptionalString(row?.date),
-      "llm-topic": asOptionalString(row?.llm?.topic),
+      "llm-topic": mapTopicToSlovenian(row?.llm?.topic),
       title: asOptionalString(row?.title),
       lead: asOptionalString(row?.lead),
     });
