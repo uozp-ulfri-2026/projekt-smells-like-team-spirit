@@ -2,15 +2,75 @@ import { Card } from "./components/ui/card";
 import { ClickableCountries } from "@/components/clickable-countries";
 import { CountryDots } from "@/components/country-dots";
 import { Map as MapComponent, MapControls } from "./components/map";
-import { useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { CountryData } from "@/components/clickable-countries";
 import Explorator from "@/components/explorator";
 import ArticleCard from "@/components/article-card";
 import { SidebarProvider } from "@/components/ui/sidebar";
+import { TimelineSlider } from "@/components/timeline-slider";
+
+type LeanArticle = {
+  _id: string
+  date?: string
+  "llm-topic"?: string
+  title?: string
+  lead?: string
+  url?: string
+}
+
+type CityProperties = {
+  city?: string
+  country?: string
+  ids?: string[]
+  [key: string]: unknown
+}
+
+type CityFeature = GeoJSON.Feature<GeoJSON.Point, CityProperties>
+type CityFeatureCollection = GeoJSON.FeatureCollection<GeoJSON.Point, CityProperties>
+
+type TimelineArticle = {
+  id: string
+  time: number
+}
+
+const DAY_MS = 24 * 60 * 60 * 1000
+
+const EMPTY_GEOJSON: CityFeatureCollection = {
+  type: "FeatureCollection",
+  features: [],
+}
+
+const dateFormatter = new Intl.DateTimeFormat("sl-SI", {
+  day: "numeric",
+  month: "short",
+  year: "numeric",
+})
+
+function parseArticleTime(article: LeanArticle): number | null {
+  if (!article.date) return null
+  const time = Date.parse(article.date)
+  return Number.isFinite(time) ? time : null
+}
+
+function formatTimelineDate(time: number | undefined): string {
+  if (time === undefined) return ""
+  return dateFormatter.format(new Date(time))
+}
+
+function useDebouncedValue<T>(value: T, delay: number): T {
+  const [debouncedValue, setDebouncedValue] = useState(value)
+
+  useEffect(() => {
+    const timeout = window.setTimeout(() => setDebouncedValue(value), delay)
+    return () => window.clearTimeout(timeout)
+  }, [value, delay])
+
+  return debouncedValue
+}
 
 export default function App() {
   return (
-    <main className="h-svh p-8 flex flex-col gap-8 overflow-hidden">
+    <main className="h-svh p-8 pb-28 flex flex-col gap-8 overflow-hidden">
       <h1 className="text-4xl font-bold text-center shrink-0">Slovenski svet</h1>
       <MyMap />
     </main>
@@ -21,47 +81,279 @@ export function MyMap() {
   const [selectedCountry, setSelectedCountry] = useState<CountryData | null>(null)
   const [selectedArticleId, setSelectedArticleId] = useState<string | null>(null)
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [baseGeoJson, setBaseGeoJson] = useState<CityFeatureCollection | null>(null)
+  const [articlesById, setArticlesById] = useState<Record<string, LeanArticle>>({})
+  const [timeline, setTimeline] = useState<TimelineArticle[]>([])
+  const [timelineRange, setTimelineRange] = useState<[number, number] | null>(null)
+  const [timelineLoadError, setTimelineLoadError] = useState<string | null>(null)
+  const debouncedTimelineRange = useDebouncedValue(timelineRange, 250)
+
+  useEffect(() => {
+    Promise.all([
+      fetch("/output.geojson").then((response) => {
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}: Failed to fetch /output.geojson`)
+        }
+        return response.json() as Promise<CityFeatureCollection>
+      }),
+      fetch("/mmc-lean.json").then((response) => {
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}: Failed to fetch /mmc-lean.json`)
+        }
+        return response.json() as Promise<LeanArticle[]>
+      }),
+    ])
+      .then(([geoJson, leanRows]) => {
+        const byId: Record<string, LeanArticle> = {}
+        const sortedTimeline: TimelineArticle[] = []
+
+        for (const article of leanRows) {
+          if (!article || typeof article._id !== "string") continue
+
+          byId[article._id] = article
+
+          const time = parseArticleTime(article)
+          if (time !== null) {
+            sortedTimeline.push({ id: article._id, time })
+          }
+        }
+
+        sortedTimeline.sort((a, b) => a.time - b.time)
+
+        setBaseGeoJson(geoJson)
+        setArticlesById(byId)
+        setTimeline(sortedTimeline)
+        setTimelineLoadError(null)
+        setTimelineRange(
+          sortedTimeline.length > 0
+            ? [sortedTimeline[0].time, sortedTimeline[sortedTimeline.length - 1].time]
+            : null
+        )
+      })
+      .catch((error) => {
+        console.error("Failed to initialize timeline data:", error)
+        setBaseGeoJson(EMPTY_GEOJSON)
+        setArticlesById({})
+        setTimeline([])
+        setTimelineRange(null)
+        setTimelineLoadError("Casovnice ni bilo mogoce naloziti.")
+      })
+  }, [])
+
+  const articleTimeById = useMemo(() => {
+    const byId = new Map<string, number>()
+
+    for (const article of timeline) {
+      byId.set(article.id, article.time)
+    }
+
+    return byId
+  }, [timeline])
+
+  const timelineBounds = useMemo(() => {
+    if (timeline.length === 0) return null
+
+    return {
+      min: timeline[0].time,
+      max: timeline[timeline.length - 1].time,
+    }
+  }, [timeline])
+
+  const normalizedTimelineRange = useMemo<[number, number] | null>(() => {
+    if (!debouncedTimelineRange || !timelineBounds) return null
+
+    const [rawStart, rawEnd] = debouncedTimelineRange
+    const start = Math.max(
+      timelineBounds.min,
+      Math.min(rawStart, rawEnd, timelineBounds.max)
+    )
+    const end = Math.min(
+      timelineBounds.max,
+      Math.max(rawStart, rawEnd, timelineBounds.min)
+    )
+
+    return [start, end]
+  }, [debouncedTimelineRange, timelineBounds])
+
+  const filteredGeoJson = useMemo<CityFeatureCollection>(() => {
+    if (!baseGeoJson || !normalizedTimelineRange) {
+      return EMPTY_GEOJSON
+    }
+
+    const [start, end] = normalizedTimelineRange
+    const features: CityFeature[] = []
+
+    for (const feature of baseGeoJson.features) {
+      const ids = Array.isArray(feature.properties?.ids) ? feature.properties.ids : []
+      const filteredIds = ids.filter((id) => {
+        const time = articleTimeById.get(id)
+        return time !== undefined && time >= start && time <= end
+      })
+
+      if (filteredIds.length === 0) continue
+
+      features.push({
+        ...feature,
+        properties: {
+          ...feature.properties,
+          ids: filteredIds,
+        },
+      })
+    }
+
+    return {
+      ...baseGeoJson,
+      features,
+    }
+  }, [articleTimeById, baseGeoJson, normalizedTimelineRange])
+
+  const timelineArticleCount = useMemo(() => {
+    if (!baseGeoJson || !timelineRange || !timelineBounds) return 0
+
+    const [rawStart, rawEnd] = timelineRange
+    const start = Math.max(
+      timelineBounds.min,
+      Math.min(rawStart, rawEnd, timelineBounds.max)
+    )
+    const end = Math.min(
+      timelineBounds.max,
+      Math.max(rawStart, rawEnd, timelineBounds.min)
+    )
+    const visibleIds = new Set<string>()
+
+    for (const feature of baseGeoJson.features) {
+      const ids = Array.isArray(feature.properties?.ids) ? feature.properties.ids : []
+
+      for (const id of ids) {
+        const time = articleTimeById.get(id)
+        if (time !== undefined && time >= start && time <= end) {
+          visibleIds.add(id)
+        }
+      }
+    }
+
+    return visibleIds.size
+  }, [articleTimeById, baseGeoJson, timelineBounds, timelineRange])
+
+  const visibleArticleIds = useMemo(() => {
+    const ids = new Set<string>()
+    for (const feature of filteredGeoJson.features) {
+      for (const id of feature.properties?.ids ?? []) {
+        ids.add(id)
+      }
+    }
+    return ids
+  }, [filteredGeoJson])
+
+  const countryArticleCounts = useMemo(() => {
+    const idsByCountry = new Map<string, Set<string>>()
+
+    for (const feature of filteredGeoJson.features) {
+      const country = feature.properties?.country
+      if (typeof country !== "string") continue
+
+      let ids = idsByCountry.get(country)
+      if (!ids) {
+        ids = new Set<string>()
+        idsByCountry.set(country, ids)
+      }
+
+      for (const id of feature.properties?.ids ?? []) {
+        ids.add(id)
+      }
+    }
+
+    return Object.fromEntries(
+      Array.from(idsByCountry, ([country, ids]) => [country, ids.size])
+    )
+  }, [filteredGeoJson])
+
+  useEffect(() => {
+    if (selectedArticleId && !visibleArticleIds.has(selectedArticleId)) {
+      setSelectedArticleId(null)
+    }
+  }, [selectedArticleId, visibleArticleIds])
+
+  const handleCountryClick = useCallback((country: CountryData) => {
+    setSelectedCountry(country)
+    setSelectedArticleId(null)
+    setSidebarOpen(true)
+  }, [])
+
+  const handleDotClick = useCallback((ids: string[]) => {
+    if (ids.length > 0) setSelectedArticleId(ids[0])
+  }, [])
+
+  const handleClearCountry = useCallback(() => {
+    setSelectedCountry(null)
+    setSelectedArticleId(null)
+  }, [])
 
   return (
-    <SidebarProvider open={sidebarOpen} onOpenChange={setSidebarOpen}>
+    <SidebarProvider
+      open={sidebarOpen}
+      onOpenChange={setSidebarOpen}
+      className="min-h-0 flex-1"
+    >
       {/* Explorator Sidebar */}
       <Explorator
         country={selectedCountry}
-        onSelectArticle={(id) => setSelectedArticleId(id)}
+        geoJson={filteredGeoJson}
+        articlesById={articlesById}
+        selectedArticleId={selectedArticleId}
+        onSelectArticle={setSelectedArticleId}
       />
 
-      <Card className="p-0 flex-1 min-h-0 overflow-hidden relative">
-        {selectedCountry && (
-          <div className="absolute top-4 left-4 z-10 bg-background text-foreground px-4 py-2 rounded-md shadow-md border font-semibold flex items-center justify-between gap-4">
-            <span>Selected: {selectedCountry.name}</span>
-            <button
-              onClick={() => setSelectedCountry(null)}
-              className="text-sm underline hover:no-underline"
-            >
-              Clear
-            </button>
+      <div className="flex flex-1 min-h-0 flex-col gap-3">
+        <Card className="p-0 flex-1 min-h-0 overflow-hidden relative">
+          {selectedCountry && (
+            <div className="absolute top-4 left-4 z-10 bg-background text-foreground px-4 py-2 rounded-md shadow-md border font-semibold flex items-center justify-between gap-4">
+              <span>Selected: {selectedCountry.name}</span>
+              <button
+                onClick={handleClearCountry}
+                className="text-sm underline hover:no-underline"
+              >
+                Clear
+              </button>
+            </div>
+          )}
+
+          <MapComponent center={[14.5058, 46.0569]} zoom={4}>
+            <MapControls position="top-right" />
+            <ClickableCountries
+              countryArticleCounts={countryArticleCounts}
+              selectedCountry={selectedCountry}
+              onCountryClick={handleCountryClick}
+            />
+            <CountryDots
+              country={selectedCountry}
+              data={filteredGeoJson}
+              articlesById={articlesById}
+              selectedArticleId={selectedArticleId}
+              onDotClick={handleDotClick}
+            />
+          </MapComponent>
+
+          <ArticleCard id={selectedArticleId} onClose={() => setSelectedArticleId(null)} />
+        </Card>
+
+        {timelineRange && timelineBounds ? (
+          <TimelineSlider
+            value={timelineRange}
+            min={timelineBounds.min}
+            max={timelineBounds.max}
+            step={DAY_MS}
+            startLabel={formatTimelineDate(Math.min(timelineRange[0], timelineRange[1]))}
+            endLabel={formatTimelineDate(Math.max(timelineRange[0], timelineRange[1]))}
+            articleCount={timelineArticleCount}
+            onValueChange={setTimelineRange}
+          />
+        ) : (
+          <div className="fixed right-8 bottom-8 left-8 z-[1000] border bg-background/95 px-4 py-3 text-xs text-muted-foreground shadow-md backdrop-blur">
+            {timelineLoadError ?? "Nalaganje casovnice ..."}
           </div>
         )}
-
-        <MapComponent center={[14.5058, 46.0569]} zoom={4}>
-          <MapControls position="bottom-right" />
-          <CountryDots
-            country={selectedCountry}
-            onDotClick={(ids) => {
-              // prefer the first id
-              if (ids && ids.length > 0) setSelectedArticleId(ids[0])
-            }}
-          />
-          <ClickableCountries
-            onCountryClick={(country) => {
-              setSelectedCountry(country)
-              setSidebarOpen(true)
-            }}
-          />
-        </MapComponent>
-
-        <ArticleCard id={selectedArticleId} onClose={() => setSelectedArticleId(null)} />
-      </Card>
+      </div>
     </SidebarProvider>
   )
 }

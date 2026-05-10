@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useEffect, useState } from "react"
+import { useEffect, useState } from "react"
 import {
   Card,
   CardContent,
@@ -8,6 +8,7 @@ import {
   CardTitle,
 } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
+import { getTopicStyle, hexToRgba } from "@/lib/topic-colors"
 
 type LeanArticle = {
   _id: string
@@ -57,8 +58,25 @@ export default function ArticleCard({ id, onClose }: { id: string | null; onClos
 
   if (!id) return null
 
+  const topicStyle = getTopicStyle(article?.["llm-topic"])
+
   return (
-    <Card className="absolute top-4 right-4 z-20 h-[90vh] w-96 border overflow-hidden shadow-lg">
+    <Card
+      className="absolute top-4 right-4 z-20 h-[90vh] w-96 border overflow-hidden shadow-lg"
+      style={{
+        borderColor: article ? hexToRgba(topicStyle.color, 0.55) : undefined,
+        boxShadow: article
+          ? `0 18px 48px rgba(0, 0, 0, 0.32), 0 0 0 1px ${hexToRgba(topicStyle.color, 0.16)}`
+          : undefined,
+      }}
+    >
+      {article && (
+        <div
+          aria-hidden="true"
+          className="absolute inset-x-0 top-0 h-1"
+          style={{ backgroundColor: topicStyle.color }}
+        />
+      )}
       <button
         onClick={onClose}
         className="absolute top-2 left-2 z-30 p-1 rounded text-muted-foreground hover:text-foreground hover:bg-accent transition"
@@ -76,7 +94,10 @@ export default function ArticleCard({ id, onClose }: { id: string | null; onClos
             <CardHeader className="pt-8">
               <CardTitle className="text-base leading-tight">{article.title?.trim() || "Untitled"}</CardTitle>
               {article["llm-topic"] && (
-                <p className="text-xs font-semibold text-blue-600 uppercase tracking-wide">
+                <p
+                  className="text-xs font-semibold uppercase tracking-wide"
+                  style={{ color: topicStyle.textColor }}
+                >
                   {article["llm-topic"]}
                 </p>
               )}
@@ -91,7 +112,8 @@ export default function ArticleCard({ id, onClose }: { id: string | null; onClos
                   href={article.url}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-sm text-blue-600 hover:underline break-all"
+                  className="break-all text-sm hover:underline"
+                  style={{ color: topicStyle.textColor }}
                 >
                   Preberi originalni clanek
                 </a>

@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useEffect, useState, useMemo } from "react"
+import React, { useEffect, useMemo, useState } from "react"
 import { Input } from "@/components/ui/input"
 import {
   Sidebar,
@@ -28,6 +28,7 @@ import {
   PaginationPrevious,
 } from "@/components/ui/pagination"
 import type { CountryData } from "@/components/clickable-countries"
+import { getTopicStyle, hexToRgba } from "@/lib/topic-colors"
 
 interface CityFeature {
   city: string
@@ -56,55 +57,31 @@ const PAGE_SIZE = 10
 
 export default function Explorator({
   country,
+  geoJson,
+  articlesById,
+  selectedArticleId,
   onSelectArticle,
 }: {
   country: CountryData | null
+  geoJson: GeoJSON.FeatureCollection<GeoJSON.Point, { city?: string; country?: string; ids?: string[] }>
+  articlesById: Record<string, LeanArticle>
+  selectedArticleId: string | null
   onSelectArticle: (id: string) => void
 }) {
   const { open } = useSidebar()
-  const [geoData, setGeoData] = useState<CityFeature[]>([])
-  const [articlesById, setArticlesById] = useState<Record<string, LeanArticle>>({})
   const [searchQuery, setSearchQuery] = useState("")
   const [selectedTopic, setSelectedTopic] = useState("all")
   const [currentPage, setCurrentPage] = useState(1)
 
-  // Fetch geo points and lean article metadata used by the sidebar.
-  useEffect(() => {
-    Promise.all([
-      fetch("/output.geojson").then((r) => {
-        if (!r.ok) {
-          throw new Error(`HTTP ${r.status}: Failed to fetch /output.geojson`)
-        }
-        return r.json()
-      }),
-      fetch("/mmc-lean.json").then((r) => {
-        if (!r.ok) {
-          throw new Error(`HTTP ${r.status}: Failed to fetch /mmc-lean.json`)
-        }
-        return r.json()
-      }),
-    ])
-      .then(([geoJson, leanRows]) => {
-        const features = (geoJson.features || [])
-          .filter((f: any) => f.properties?.ids && f.properties?.city && f.properties?.country)
-          .map((f: any) => ({
-            city: f.properties.city,
-            country: f.properties.country,
-            ids: Array.isArray(f.properties.ids) ? f.properties.ids : [],
-          }))
-
-        const byId: Record<string, LeanArticle> = {}
-        for (const row of (leanRows as LeanArticle[])) {
-          if (row && typeof row._id === "string") {
-            byId[row._id] = row
-          }
-        }
-
-        setGeoData(features)
-        setArticlesById(byId)
-      })
-      .catch((err) => console.error("Failed to initialize explorator data:", err))
-  }, [])
+  const geoData = useMemo<CityFeature[]>(() => {
+    return (geoJson.features || [])
+      .filter((feature) => feature.properties?.ids && feature.properties?.city && feature.properties?.country)
+      .map((feature) => ({
+        city: feature.properties?.city ?? "",
+        country: feature.properties?.country ?? "",
+        ids: Array.isArray(feature.properties?.ids) ? feature.properties.ids : [],
+      }))
+  }, [geoJson])
 
   const rows = useMemo(() => {
     const dedup = new Set<string>()
@@ -201,11 +178,22 @@ export default function Explorator({
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">Vse teme</SelectItem>
-              {topics.map((topic) => (
-                <SelectItem key={topic} value={topic}>
-                  {topic}
-                </SelectItem>
-              ))}
+              {topics.map((topic) => {
+                const topicStyle = getTopicStyle(topic)
+
+                return (
+                  <SelectItem key={topic} value={topic}>
+                    <span className="inline-flex items-center gap-2">
+                      <span
+                        aria-hidden="true"
+                        className="size-2 rounded-full"
+                        style={{ backgroundColor: topicStyle.color }}
+                      />
+                      {topic}
+                    </span>
+                  </SelectItem>
+                )
+              })}
             </SelectContent>
           </Select>
         </SidebarHeader>
@@ -215,20 +203,44 @@ export default function Explorator({
             {filteredRows.length === 0 ? (
               <div className="py-4 text-sm text-gray-500">Ni zadetkov za izbrane filtre.</div>
             ) : (
-              pagedRows.map((row) => (
-                <Button
-                  key={row.id}
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => onSelectArticle(row.id)}
-                  className="h-auto w-full justify-start px-2 py-2 text-left"
-                >
-                  <div className="min-w-0">
-                    <p className="truncate text-xs font-medium text-foreground">{row.title}</p>
-                    <p className="truncate text-[11px] text-muted-foreground">{row.topic} · {row.city}</p>
-                  </div>
-                </Button>
-              ))
+              pagedRows.map((row) => {
+                const topicStyle = getTopicStyle(row.topic)
+                const isSelected = row.id === selectedArticleId
+
+                return (
+                  <Button
+                    key={row.id}
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => onSelectArticle(row.id)}
+                    className="h-auto w-full justify-start gap-2 border border-l-4 px-2 py-2 text-left transition-colors"
+                    style={{
+                      borderLeftColor: topicStyle.color,
+                      borderTopColor: isSelected ? hexToRgba(topicStyle.color, 0.55) : "transparent",
+                      borderRightColor: isSelected ? hexToRgba(topicStyle.color, 0.55) : "transparent",
+                      borderBottomColor: isSelected ? hexToRgba(topicStyle.color, 0.55) : "transparent",
+                      backgroundColor: hexToRgba(topicStyle.color, isSelected ? 0.22 : 0.08),
+                    }}
+                  >
+                    <span
+                      aria-hidden="true"
+                      className="mt-0.5 size-2.5 shrink-0 rounded-full"
+                      style={{
+                        backgroundColor: topicStyle.color,
+                        boxShadow: isSelected
+                          ? `0 0 0 4px ${hexToRgba(topicStyle.color, 0.22)}`
+                          : undefined,
+                      }}
+                    />
+                    <div className="min-w-0">
+                      <p className="truncate text-xs font-medium text-foreground">{row.title}</p>
+                      <p className="truncate text-[11px]" style={{ color: topicStyle.textColor }}>
+                        {row.topic} - {row.city}
+                      </p>
+                    </div>
+                  </Button>
+                )
+              })
             )}
 
             {filteredRows.length > 0 && (
@@ -292,7 +304,6 @@ export default function Explorator({
         </SidebarContent>
       </Sidebar>
 
-      {/* Trigger button when sidebar is closed */}
       {!open && (
         <div className="fixed top-4 left-4 z-20">
           <SidebarTrigger />
