@@ -9,14 +9,24 @@ import {
   SidebarTrigger,
   useSidebar,
 } from "@/components/ui/sidebar"
-import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from "@/components/ui/accordion"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import {
+  Pagination,
+  PaginationContent,
+  PaginationEllipsis,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+} from "@/components/ui/pagination"
 import type { CountryData } from "@/components/clickable-countries"
 
 interface CityFeature {
@@ -34,11 +44,15 @@ interface LeanArticle {
   lead?: string
 }
 
-interface ExplorerData {
-  [country: string]: {
-    [city: string]: string[]
-  }
+interface SearchRow {
+  id: string
+  title: string
+  topic: string
+  city: string
+  country: string
 }
+
+const PAGE_SIZE = 10
 
 export default function Explorator({
   country,
@@ -51,6 +65,8 @@ export default function Explorator({
   const [geoData, setGeoData] = useState<CityFeature[]>([])
   const [articlesById, setArticlesById] = useState<Record<string, LeanArticle>>({})
   const [searchQuery, setSearchQuery] = useState("")
+  const [selectedTopic, setSelectedTopic] = useState("all")
+  const [currentPage, setCurrentPage] = useState(1)
 
   // Fetch geo points and lean article metadata used by the sidebar.
   useEffect(() => {
@@ -90,128 +106,187 @@ export default function Explorator({
       .catch((err) => console.error("Failed to initialize explorator data:", err))
   }, [])
 
-  // Filter and organize data
-  const filtered = useMemo(() => {
-    let data = geoData
+  const rows = useMemo(() => {
+    const dedup = new Set<string>()
+    const out: SearchRow[] = []
 
-    // Filter by country if selected
-    if (country) {
-      data = data.filter((f) => f.country.toLowerCase() === country.name.toLowerCase())
-    }
-
-    // Filter by search query
-    if (searchQuery) {
-      const query = searchQuery.toLowerCase()
-      data = data.filter(
-        (f) => f.city.toLowerCase().includes(query) || f.country.toLowerCase().includes(query)
-      )
-    }
-
-    // Group by country and sort cities by article count
-    const grouped: ExplorerData = {}
-    data.forEach((feature) => {
-      if (!grouped[feature.country]) {
-        grouped[feature.country] = {}
+    for (const feature of geoData) {
+      if (
+        country &&
+        feature.country.toLowerCase() !== country.name.toLowerCase()
+      ) {
+        continue
       }
-      grouped[feature.country][feature.city] = feature.ids
-    })
 
-    // Sort countries and cities
-    const sorted: ExplorerData = {}
-    Object.keys(grouped)
-      .sort()
-      .forEach((countryName) => {
-        const cities: { [key: string]: string[] } = {}
-        Object.keys(grouped[countryName])
-          .sort((a, b) => {
-            // Sort by article count (descending)
-            const countA = grouped[countryName][a].length
-            const countB = grouped[countryName][b].length
-            return countB - countA
-          })
-          .forEach((cityName) => {
-            cities[cityName] = grouped[countryName][cityName]
-          })
-        sorted[countryName] = cities
+      for (const id of feature.ids) {
+        if (dedup.has(id)) continue
+        dedup.add(id)
+
+        const article = articlesById[id]
+        if (!article) continue
+
+        out.push({
+          id,
+          title: article.title?.trim() || id,
+          topic: article["llm-topic"] || "Brez teme",
+          city: feature.city,
+          country: feature.country,
+        })
+      }
+    }
+
+    return out
+  }, [geoData, articlesById, country])
+
+  const topics = useMemo(() => {
+    return Array.from(new Set(rows.map((r) => r.topic))).sort((a, b) => a.localeCompare(b, "sl"))
+  }, [rows])
+
+  const filteredRows = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase()
+    return rows
+      .filter((row) => {
+        const cityMatch = q.length === 0 || row.city.toLowerCase().includes(q)
+        const topicMatch = selectedTopic === "all" || row.topic === selectedTopic
+        return cityMatch && topicMatch
       })
+      .sort((a, b) => a.title.localeCompare(b.title, "sl"))
+  }, [rows, searchQuery, selectedTopic])
 
-    return sorted
-  }, [geoData, country, searchQuery])
+  const totalPages = Math.max(1, Math.ceil(filteredRows.length / PAGE_SIZE))
+
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [searchQuery, selectedTopic, country])
+
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages)
+    }
+  }, [currentPage, totalPages])
+
+  const pagedRows = useMemo(() => {
+    const start = (currentPage - 1) * PAGE_SIZE
+    return filteredRows.slice(start, start + PAGE_SIZE)
+  }, [filteredRows, currentPage])
+
+  const pageNumbers = useMemo(() => {
+    if (totalPages <= 5) {
+      return Array.from({ length: totalPages }, (_, i) => i + 1)
+    }
+    if (currentPage <= 3) return [1, 2, 3, 4, totalPages]
+    if (currentPage >= totalPages - 2) {
+      return [1, totalPages - 3, totalPages - 2, totalPages - 1, totalPages]
+    }
+    return [1, currentPage - 1, currentPage, currentPage + 1, totalPages]
+  }, [currentPage, totalPages])
 
   return (
     <>
-      <Sidebar className="border-r border-gray-200 dark:border-slate-800">
+      <Sidebar>
         <SidebarHeader>
           <div className="flex items-center justify-between gap-2">
             <h2 className="text-lg font-semibold">Cities & News</h2>
-            <SidebarTrigger className="-mr-2" />
+            <SidebarTrigger />
           </div>
           <Separator className="mt-2" />
           <Input
-            placeholder="Search cities..."
+            placeholder="Isci mesta..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="h-8 text-sm"
           />
+          <Select value={selectedTopic} onValueChange={setSelectedTopic}>
+            <SelectTrigger>
+              <SelectValue placeholder="Izberi temo" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Vse teme</SelectItem>
+              {topics.map((topic) => (
+                <SelectItem key={topic} value={topic}>
+                  {topic}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </SidebarHeader>
 
         <SidebarContent>
-          <div className="space-y-4">
-            {Object.keys(filtered).length === 0 ? (
-              <div className="px-2 py-4 text-sm text-gray-500">
-                {searchQuery ? "No cities match your search" : "No data available"}
-              </div>
+          <div className="space-y-2 px-2 pb-2">
+            {filteredRows.length === 0 ? (
+              <div className="py-4 text-sm text-gray-500">Ni zadetkov za izbrane filtre.</div>
             ) : (
-              <Accordion type="multiple" defaultValue={Object.keys(filtered)} className="w-full">
-                {Object.keys(filtered).map((countryName) => (
-                  <AccordionItem key={countryName} value={countryName} className="border-0">
-                    <AccordionTrigger className="py-2 px-2 hover:bg-gray-100 dark:hover:bg-slate-800 rounded">
-                      <span className="font-semibold text-sm">{countryName}</span>
-                    </AccordionTrigger>
-                    <AccordionContent className="pb-0">
-                      <div className="space-y-2 pl-2">
-                        {Object.keys(filtered[countryName]).map((cityName) => {
-                          const ids = filtered[countryName][cityName]
-                          return (
-                            <div
-                              key={`${countryName}-${cityName}`}
-                              className="border-l border-gray-300 dark:border-slate-700 pl-3"
+              pagedRows.map((row) => (
+                <Button
+                  key={row.id}
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => onSelectArticle(row.id)}
+                  className="h-auto w-full justify-start px-2 py-2 text-left"
+                >
+                  <div className="min-w-0">
+                    <p className="truncate text-xs font-medium text-foreground">{row.title}</p>
+                    <p className="truncate text-[11px] text-muted-foreground">{row.topic} · {row.city}</p>
+                  </div>
+                </Button>
+              ))
+            )}
+
+            {filteredRows.length > 0 && (
+              <div className="pt-2">
+                <Pagination>
+                  <PaginationContent>
+                    <PaginationItem>
+                      <PaginationPrevious
+                        href="#"
+                        onClick={(e) => {
+                          e.preventDefault()
+                          if (currentPage > 1) setCurrentPage((p) => p - 1)
+                        }}
+                        className={currentPage === 1 ? "pointer-events-none opacity-50" : ""}
+                        text="Prej"
+                      />
+                    </PaginationItem>
+
+                    {pageNumbers.map((page, i) => {
+                      const prev = pageNumbers[i - 1]
+                      const showEllipsis = i > 0 && prev && page - prev > 1
+                      return (
+                        <React.Fragment key={`page-${page}`}>
+                          {showEllipsis && (
+                            <PaginationItem>
+                              <PaginationEllipsis />
+                            </PaginationItem>
+                          )}
+                          <PaginationItem>
+                            <PaginationLink
+                              href="#"
+                              isActive={page === currentPage}
+                              onClick={(e) => {
+                                e.preventDefault()
+                                setCurrentPage(page)
+                              }}
                             >
-                              <div className="flex items-start justify-between gap-2 py-1">
-                                <div>
-                                  <p className="text-sm font-medium text-gray-900 dark:text-white">
-                                    {cityName}
-                                  </p>
-                                  <p className="text-xs text-gray-500 dark:text-gray-400">
-                                    {ids.length} article{ids.length !== 1 ? "s" : ""}
-                                  </p>
-                                </div>
-                              </div>
-                              <div className="space-y-1 mt-1">
-                                {ids.map((id) => (
-                                  <Button
-                                    key={id}
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={() => {
-                                      onSelectArticle(id)
-                                    }}
-                                    className="w-full justify-start text-xs h-8 px-2 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-slate-800"
-                                  >
-                                    <span className="truncate">
-                                      {articlesById[id]?.title?.trim() || id}
-                                    </span>
-                                  </Button>
-                                ))}
-                              </div>
-                            </div>
-                          )
-                        })}
-                      </div>
-                    </AccordionContent>
-                  </AccordionItem>
-                ))}
-              </Accordion>
+                              {page}
+                            </PaginationLink>
+                          </PaginationItem>
+                        </React.Fragment>
+                      )
+                    })}
+
+                    <PaginationItem>
+                      <PaginationNext
+                        href="#"
+                        onClick={(e) => {
+                          e.preventDefault()
+                          if (currentPage < totalPages) setCurrentPage((p) => p + 1)
+                        }}
+                        className={currentPage === totalPages ? "pointer-events-none opacity-50" : ""}
+                        text="Naprej"
+                      />
+                    </PaginationItem>
+                  </PaginationContent>
+                </Pagination>
+              </div>
             )}
           </div>
         </SidebarContent>
