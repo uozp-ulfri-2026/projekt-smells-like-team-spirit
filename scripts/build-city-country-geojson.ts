@@ -13,13 +13,14 @@ type MmcArticle = {
 
 type NominatimResult = {
 	name?: string;
-	display_name?: string;
 	lat?: string;
 	lon?: string;
 	addresstype?: string;
 	address?: {
 		city?: string;
 		town?: string;
+		village?: string;
+		municipality?: string;
 		country?: string;
 	};
 };
@@ -64,86 +65,9 @@ type AggregateEntry = {
 
 const scriptDir = import.meta.dir;
 
-const COUNTRY_NAME_TO_ENGLISH: Record<string, string> = {
-	Afganistan: "Afghanistan",
-	Albanija: "Albania",
-	Alžirija: "Algeria",
-	Andora: "Andorra",
-	Argentina: "Argentina",
-	Armenija: "Armenia",
-	Avstralija: "Australia",
-	Avstrija: "Austria",
-	Belgija: "Belgium",
-	"Bosna in Hercegovina": "Bosnia and Herzegovina",
-	Brazilija: "Brazil",
-	Bolgarija: "Bulgaria",
-	Kanada: "Canada",
-	Češka: "Czechia",
-	Danska: "Denmark",
-	Egipt: "Egypt",
-	Estonija: "Estonia",
-	Finska: "Finland",
-	Francija: "France",
-	Nemčija: "Germany",
-	Grčija: "Greece",
-	Madžarska: "Hungary",
-	Islandija: "Iceland",
-	Indija: "India",
-	Indonezija: "Indonesia",
-	Iran: "Iran",
-	Irak: "Iraq",
-	Irska: "Ireland",
-	Izrael: "Israel",
-	Italija: "Italy",
-	Japonska: "Japan",
-	Jordanija: "Jordan",
-	Kazahstan: "Kazakhstan",
-	Kenija: "Kenya",
-	Kosovo: "Kosovo",
-	Katar: "Qatar",
-	Kirgizistan: "Kyrgyzstan",
-	Latvija: "Latvia",
-	Litva: "Lithuania",
-	Luksemburg: "Luxembourg",
-	Malta: "Malta",
-	Moldavija: "Moldova",
-	Monako: "Monaco",
-	"Črna gora": "Montenegro",
-	Maroko: "Morocco",
-	Nizozemska: "Netherlands",
-	"Nova Zelandija": "New Zealand",
-	Norveška: "Norway",
-	Pakistan: "Pakistan",
-	Palestina: "Palestine",
-	Peru: "Peru",
-	Poljska: "Poland",
-	Portugalska: "Portugal",
-	Romunija: "Romania",
-	Ruanda: "Rwanda",
-	Rusija: "Russia",
-	"Saudova Arabija": "Saudi Arabia",
-	Senegal: "Senegal",
-	Srbija: "Serbia",
-	Singapur: "Singapore",
-	Slovaška: "Slovakia",
-	Slovenija: "Slovenia",
-	Somalija: "Somalia",
-	Španija: "Spain",
-	Švedska: "Sweden",
-	Švica: "Switzerland",
-	Sirija: "Syria",
-	Tajska: "Thailand",
-	Tunizija: "Tunisia",
-	Turčija: "Turkey",
-	Ukrajina: "Ukraine",
-	"Združeni arabski emirati": "United Arab Emirates",
-	"Združeno kraljestvo": "United Kingdom",
-	"Združene države Amerike": "United States of America",
-	Urugvaj: "Uruguay",
-	Venezuela: "Venezuela",
-	Vietnam: "Vietnam",
-	Zimbabve: "Zimbabwe",
-};
+const DEFAULT_MMC_INPUT = "assets/mmc-llm.json";
+const DEFAULT_NOMINATIM_INPUT = "assets/mmc-city-country-nominatim-joined.json";
+const DEFAULT_OUTPUT = "assets/output.geojson";
 
 function resolvePath(inputPath: string): string {
 	if (isAbsolute(inputPath)) {
@@ -173,40 +97,19 @@ function getFirstResult(lookup: NominatimLookup): NominatimResult | null {
 	);
 }
 
-function getDisplayCountry(displayName: string | undefined): string | null {
-	const normalized = normalizeText(displayName);
-	if (!normalized) return null;
-
-	const parts = normalized
-		.split(",")
-		.map((part) => part.trim())
-		.filter((part) => part.length > 0);
-
-	return parts.at(-1) ?? null;
-}
-
-function toEnglishCountryName(country: string | null): string | null {
-	if (!country) return null;
-	return COUNTRY_NAME_TO_ENGLISH[country] ?? country;
-}
-
 function getFeatureLabels(result: NominatimResult): {
 	city: string;
 	country: string;
 } {
-	if (result.addresstype === "city" && result.address) {
-		const city = normalizeText(result.address.city) ?? "Unknown";
-		const country = normalizeText(result.address.country) ?? "Unknown";
-
-		if (city !== "Unknown" && country !== "Unknown") {
-			return { city, country };
-		}
-	}
-
-	const rawCity = normalizeText(result.name) ?? "Unknown";
-	const city = COUNTRY_NAME_TO_ENGLISH[rawCity] ?? rawCity;
-	const country =
-		toEnglishCountryName(getDisplayCountry(result.display_name)) ?? "Unknown";
+	const address = result.address;
+	const city =
+		normalizeText(address?.city) ??
+		normalizeText(address?.town) ??
+		normalizeText(address?.village) ??
+		normalizeText(address?.municipality) ??
+		normalizeText(result.name) ??
+		"Unknown";
+	const country = normalizeText(address?.country) ?? "Unknown";
 
 	return { city, country };
 }
@@ -232,23 +135,38 @@ async function readJson<T>(filePath: string): Promise<T> {
 }
 
 async function main(): Promise<void> {
-	const [mmcInputArg, nominatimInputArg, outputArg] = process.argv.slice(2);
+	const args = process.argv.slice(2);
 
-	if (!mmcInputArg || !nominatimInputArg || !outputArg) {
+	if (args.includes("--help")) {
 		console.error(
 			[
 				"Usage:",
-				"  bun scripts/build-city-country-geojson.ts <mmc-llm.json> <nominatim.json> <output.geojson>",
+				"  bun scripts/build-city-country-geojson.ts [mmc-llm.json] [output.geojson]",
 				"",
 				"Example:",
-				"  bun scripts/build-city-country-geojson.ts assets/mmc-llm.json assets/mmc-city-country-nominatim.json assets/output.geojson",
+				`  bun scripts/build-city-country-geojson.ts ${DEFAULT_MMC_INPUT} ${DEFAULT_OUTPUT}`,
+				"",
+				`Nominatim lookups are always loaded from ${DEFAULT_NOMINATIM_INPUT}.`,
 			].join("\n"),
 		);
 		process.exit(1);
 	}
 
+	let mmcInputArg = DEFAULT_MMC_INPUT;
+	let outputArg = DEFAULT_OUTPUT;
+
+	if (args.length === 1) {
+		outputArg = args[0] ?? DEFAULT_OUTPUT;
+	} else if (args.length === 2) {
+		mmcInputArg = args[0] ?? DEFAULT_MMC_INPUT;
+		outputArg = args[1] ?? DEFAULT_OUTPUT;
+	} else if (args.length >= 3) {
+		mmcInputArg = args[0] ?? DEFAULT_MMC_INPUT;
+		outputArg = args[2] ?? DEFAULT_OUTPUT;
+	}
+
 	const mmcPath = resolvePath(mmcInputArg);
-	const nominatimPath = resolvePath(nominatimInputArg);
+	const nominatimPath = resolvePath(DEFAULT_NOMINATIM_INPUT);
 	const outputPath = resolvePath(outputArg);
 
 	console.log("📥 Loading MMC articles...");
@@ -325,6 +243,14 @@ async function main(): Promise<void> {
 		}
 
 		const labels = getFeatureLabels(lookupEntry.result);
+		if (labels.country === "Unknown") {
+			console.warn(
+				`⚠️ Nominatim result for ${queryCity}, ${queryCountry} is missing address.country. Skipping.`,
+			);
+			skippedMmcRows += 1;
+			continue;
+		}
+
 		const aggregateKey = getPairKey(labels.city, labels.country);
 		const existing = aggregated.get(aggregateKey);
 
@@ -372,7 +298,10 @@ async function main(): Promise<void> {
 	await Bun.write(outputPath, `${JSON.stringify(geojson, null, 2)}\n`);
 
 	console.log(`✅ Wrote ${features.length} GeoJSON features to ${outputPath}`);
-	const totalArticles = features.reduce((sum, f) => sum + f.properties.ids.length, 0);
+	const totalArticles = features.reduce(
+		(sum, f) => sum + f.properties.ids.length,
+		0,
+	);
 	console.log(
 		`ℹ️ Included ${totalArticles} articles total. Skipped ${skippedMmcRows} MMC rows and ${missingLookupRows} Nominatim rows.`,
 	);
