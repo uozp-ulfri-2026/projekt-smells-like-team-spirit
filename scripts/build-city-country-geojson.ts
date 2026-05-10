@@ -16,6 +16,9 @@ type NominatimResult = {
 	display_name?: string;
 	lat?: string;
 	lon?: string;
+	addresstype?: string;
+	city?: string;
+	country?: string;
 };
 
 type NominatimLookup = {
@@ -36,7 +39,7 @@ type GeoJsonFeature = {
 	properties: {
 		city: string;
 		country: string;
-		count: number;
+		ids: string[];
 	};
 };
 
@@ -52,7 +55,7 @@ type LookupEntry = {
 type AggregateEntry = {
 	city: string;
 	country: string;
-	count: number;
+	ids: string[];
 	result: NominatimResult;
 };
 
@@ -188,6 +191,14 @@ function getFeatureLabels(result: NominatimResult): {
 	city: string;
 	country: string;
 } {
+	// If addresstype is "city", use result.city and result.country directly
+	if (result.addresstype === "city") {
+		const city = normalizeText(result.city) ?? "Unknown";
+		const country = normalizeText(result.country) ?? "Unknown";
+		return { city, country };
+	}
+
+	// Fallback to name and display_name
 	const rawCity = normalizeText(result.name) ?? "Unknown";
 	const city = COUNTRY_NAME_TO_ENGLISH[rawCity] ?? rawCity;
 	const country =
@@ -314,14 +325,16 @@ async function main(): Promise<void> {
 		const existing = aggregated.get(aggregateKey);
 
 		if (existing) {
-			existing.count += 1;
+			if (article._id) {
+				existing.ids.push(article._id);
+			}
 			continue;
 		}
 
 		aggregated.set(aggregateKey, {
 			city: labels.city,
 			country: labels.country,
-			count: 1,
+			ids: article._id ? [article._id] : [],
 			result: lookupEntry.result,
 		});
 	}
@@ -341,7 +354,7 @@ async function main(): Promise<void> {
 			properties: {
 				city: entry.city,
 				country: entry.country,
-				count: entry.count,
+				ids: entry.ids,
 			},
 		};
 	});
@@ -355,8 +368,9 @@ async function main(): Promise<void> {
 	await Bun.write(outputPath, `${JSON.stringify(geojson, null, 2)}\n`);
 
 	console.log(`✅ Wrote ${features.length} GeoJSON features to ${outputPath}`);
+	const totalArticles = features.reduce((sum, f) => sum + f.properties.ids.length, 0);
 	console.log(
-		`ℹ️ Skipped ${skippedMmcRows} MMC rows and ${missingLookupRows} Nominatim rows.`,
+		`ℹ️ Included ${totalArticles} articles total. Skipped ${skippedMmcRows} MMC rows and ${missingLookupRows} Nominatim rows.`,
 	);
 }
 

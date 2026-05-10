@@ -118,7 +118,7 @@ async function run(): Promise<void> {
 		join(__dirname, "..", "assets", "mmc-city-country-pairs.json");
 	const output_file =
 		process.argv[3] ??
-		join(__dirname, "..", "assets", "mmc-city-country-nominatim4.json");
+		join(__dirname, "..", "assets", "mmc-city-country-nominatim1.json");
 
 	const raw_text = await readFile(input_file, "utf8");
 	const parsed = JSON.parse(raw_text) as unknown;
@@ -142,7 +142,7 @@ async function run(): Promise<void> {
 	// const queries_length = 50;
 	const queries_length = valid_pairs.length;
 
-	for (let index = 1193 - 3; index < queries_length; index += 1) {
+	for (let index = 33749 - 3; index < queries_length; index += 1) {
 		const pair = valid_pairs[index];
 		const pair_query = `${pair.city}, ${pair.country}`;
 		const just_city_query = pair.city;
