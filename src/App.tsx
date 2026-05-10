@@ -4,6 +4,8 @@ import { CountryDots } from "@/components/country-dots";
 import { Map as MapComponent, MapControls } from "./components/map";
 import { useState } from "react";
 import type { CountryData } from "@/components/clickable-countries";
+import Explorator from "@/components/explorator";
+import ArticleCard from "@/components/article-card";
 
 export default function App() {
   return (
@@ -16,6 +18,7 @@ export default function App() {
 
 export function MyMap() {
   const [selectedCountry, setSelectedCountry] = useState<CountryData | null>(null);
+  const [selectedArticleId, setSelectedArticleId] = useState<string | null>(null);
 
   return (
     <Card className="p-0 w-full flex-1 min-h-0 overflow-hidden relative">
@@ -28,11 +31,23 @@ export function MyMap() {
 
       <MapComponent center={[14.5058, 46.0569]} zoom={4}>
         <MapControls position="bottom-right" />
-        <CountryDots country={selectedCountry} />
+        <CountryDots country={selectedCountry} onDotClick={(ids) => {
+          // prefer the first id
+          if (ids && ids.length > 0) setSelectedArticleId(ids[0])
+        }} />
         <ClickableCountries
           onCountryClick={(country) => setSelectedCountry(country)}
         />
       </MapComponent>
+
+      {/* <Explorator
+        country={selectedCountry}
+        open={!!selectedCountry}
+        onOpenChange={(open) => { if (!open) setSelectedCountry(null) }}
+        onSelectArticle={(id) => setSelectedArticleId(id)}
+      /> */}
+
+      <ArticleCard id={selectedArticleId} onClose={() => setSelectedArticleId(null)} />
     </Card>
   );
 }

@@ -142,7 +142,7 @@ async function run(): Promise<void> {
 	// const queries_length = 50;
 	const queries_length = valid_pairs.length;
 
-	for (let index = 33749 - 3; index < queries_length; index += 1) {
+	for (let index = 4750 - 3; index < queries_length; index += 1) {
 		const pair = valid_pairs[index];
 		const pair_query = `${pair.city}, ${pair.country}`;
 		const just_city_query = pair.city;

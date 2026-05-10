@@ -4,6 +4,7 @@ import type { CountryData } from "@/components/clickable-countries";
 
 type CountryDotsProps = {
 	country: CountryData | null;
+	onDotClick?: (ids: string[]) => void;
 };
 
 function getLocalizedCountryName(country: CountryData | null): string | null {
@@ -17,7 +18,7 @@ function getLocalizedCountryName(country: CountryData | null): string | null {
 	}
 }
 
-export function CountryDots({ country }: CountryDotsProps) {
+export function CountryDots({ country, onDotClick }: CountryDotsProps) {
 	const { map, isLoaded } = useMap();
 	const id = useId();
 	const source_id = `country-dots-source-${id}`;
@@ -72,6 +73,52 @@ export function CountryDots({ country }: CountryDotsProps) {
 			}
 		};
 	}, [isLoaded, map, source_id, layer_id]);
+
+	useEffect(() => {
+		if (!isLoaded || !map?.getLayer(layer_id)) return;
+
+		const handleClick = (e: any) => {
+			try {
+				const features = e.features;
+				if (!features || features.length === 0) return;
+				const props = features[0].properties as Record<string, any>;
+				let idsRaw = props?.ids ?? [];
+				// MapLibre/GeoJSON may serialize arrays as JSON strings in some builds.
+				let ids: string[] = [];
+				if (Array.isArray(idsRaw)) {
+					ids = idsRaw as string[];
+				} else if (typeof idsRaw === "string") {
+					try {
+						const parsed = JSON.parse(idsRaw);
+						if (Array.isArray(parsed)) ids = parsed;
+						else ids = [idsRaw];
+					} catch {
+						// fallback: single id string
+						ids = [idsRaw];
+					}
+				} else if (idsRaw == null) {
+					ids = [];
+				} else {
+					ids = [String(idsRaw)];
+				}
+
+				// debug log for runtime inspection
+				// eslint-disable-next-line no-console
+				console.debug("country-dots: clicked feature properties:", props, "resolved ids:", ids);
+
+				if (onDotClick) onDotClick(ids);
+			} catch (err) {
+				// eslint-disable-next-line no-console
+				console.error("country-dots click handler error:", err);
+			}
+		};
+
+		map.on("click", layer_id, handleClick);
+
+		return () => {
+			map.off("click", layer_id, handleClick);
+		};
+	}, [isLoaded, map, layer_id, onDotClick]);
 
 	useEffect(() => {
 		if (!isLoaded || !map?.getLayer(layer_id)) return;
