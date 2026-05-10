@@ -17,8 +17,11 @@ type NominatimResult = {
 	lat?: string;
 	lon?: string;
 	addresstype?: string;
-	city?: string;
-	country?: string;
+	address?: {
+		city?: string;
+		town?: string;
+		country?: string;
+	};
 };
 
 type NominatimLookup = {
@@ -191,14 +194,15 @@ function getFeatureLabels(result: NominatimResult): {
 	city: string;
 	country: string;
 } {
-	// If addresstype is "city", use result.city and result.country directly
-	if (result.addresstype === "city") {
-		const city = normalizeText(result.city) ?? "Unknown";
-		const country = normalizeText(result.country) ?? "Unknown";
-		return { city, country };
+	if (result.addresstype === "city" && result.address) {
+		const city = normalizeText(result.address.city) ?? "Unknown";
+		const country = normalizeText(result.address.country) ?? "Unknown";
+
+		if (city !== "Unknown" && country !== "Unknown") {
+			return { city, country };
+		}
 	}
 
-	// Fallback to name and display_name
 	const rawCity = normalizeText(result.name) ?? "Unknown";
 	const city = COUNTRY_NAME_TO_ENGLISH[rawCity] ?? rawCity;
 	const country =
