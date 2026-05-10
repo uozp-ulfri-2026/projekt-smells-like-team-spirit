@@ -8,6 +8,7 @@ import Explorator from "@/components/explorator";
 import ArticleCard from "@/components/article-card";
 import { SidebarProvider } from "@/components/ui/sidebar";
 import { TimelineSlider } from "@/components/timeline-slider";
+import { COUNTRY_ARTICLE_COLOR_STOPS } from "@/lib/country-article-scale";
 
 type LeanArticle = {
   _id: string
@@ -68,6 +69,32 @@ function useDebouncedValue<T>(value: T, delay: number): T {
   return debouncedValue
 }
 
+function CountryColorLegend({ selectedTopic }: { selectedTopic: string }) {
+  const gradient = `linear-gradient(90deg, ${COUNTRY_ARTICLE_COLOR_STOPS.map(
+    (stop) => stop.color
+  ).join(", ")})`
+  const ticks = COUNTRY_ARTICLE_COLOR_STOPS.filter((_, index) =>
+    [0, 2, 4, 6, COUNTRY_ARTICLE_COLOR_STOPS.length - 1].includes(index)
+  )
+
+  return (
+    <div className="absolute left-4 bottom-4 z-10 w-72 rounded-md border bg-background/95 px-3 py-2 text-xs shadow-md backdrop-blur">
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <span className="font-medium text-foreground">Articles by country</span>
+        {selectedTopic !== "all" && (
+          <span className="truncate text-muted-foreground">{selectedTopic}</span>
+        )}
+      </div>
+      <div className="h-2 rounded-full" style={{ background: gradient }} />
+      <div className="mt-1 flex justify-between text-[10px] text-muted-foreground">
+        {ticks.map((stop) => (
+          <span key={stop.label}>{stop.label}</span>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 export default function App() {
   return (
     <main className="h-svh p-8 pb-28 flex flex-col gap-8 overflow-hidden">
@@ -80,12 +107,14 @@ export default function App() {
 export function MyMap() {
   const [selectedCountry, setSelectedCountry] = useState<CountryData | null>(null)
   const [selectedArticleId, setSelectedArticleId] = useState<string | null>(null)
+  const [selectedDotArticleIds, setSelectedDotArticleIds] = useState<string[]>([])
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [baseGeoJson, setBaseGeoJson] = useState<CityFeatureCollection | null>(null)
   const [articlesById, setArticlesById] = useState<Record<string, LeanArticle>>({})
   const [timeline, setTimeline] = useState<TimelineArticle[]>([])
   const [timelineRange, setTimelineRange] = useState<[number, number] | null>(null)
   const [timelineLoadError, setTimelineLoadError] = useState<string | null>(null)
+  const [selectedTopic, setSelectedTopic] = useState("all")
   const debouncedTimelineRange = useDebouncedValue(timelineRange, 250)
 
   useEffect(() => {
@@ -175,6 +204,13 @@ export function MyMap() {
     return [start, end]
   }, [debouncedTimelineRange, timelineBounds])
 
+  const articleMatchesSelectedTopic = useCallback((id: string) => {
+    if (selectedTopic === "all") return true
+
+    const topic = articlesById[id]?.["llm-topic"] || "Brez teme"
+    return topic === selectedTopic
+  }, [articlesById, selectedTopic])
+
   const filteredGeoJson = useMemo<CityFeatureCollection>(() => {
     if (!baseGeoJson || !normalizedTimelineRange) {
       return EMPTY_GEOJSON
@@ -207,6 +243,32 @@ export function MyMap() {
     }
   }, [articleTimeById, baseGeoJson, normalizedTimelineRange])
 
+  const topicFilteredGeoJson = useMemo<CityFeatureCollection>(() => {
+    if (selectedTopic === "all") return filteredGeoJson
+
+    const features: CityFeature[] = []
+
+    for (const feature of filteredGeoJson.features) {
+      const ids = Array.isArray(feature.properties?.ids) ? feature.properties.ids : []
+      const filteredIds = ids.filter(articleMatchesSelectedTopic)
+
+      if (filteredIds.length === 0) continue
+
+      features.push({
+        ...feature,
+        properties: {
+          ...feature.properties,
+          ids: filteredIds,
+        },
+      })
+    }
+
+    return {
+      ...filteredGeoJson,
+      features,
+    }
+  }, [articleMatchesSelectedTopic, filteredGeoJson, selectedTopic])
+
   const timelineArticleCount = useMemo(() => {
     if (!baseGeoJson || !timelineRange || !timelineBounds) return 0
 
@@ -226,29 +288,40 @@ export function MyMap() {
 
       for (const id of ids) {
         const time = articleTimeById.get(id)
-        if (time !== undefined && time >= start && time <= end) {
+        if (
+          time !== undefined &&
+          time >= start &&
+          time <= end &&
+          articleMatchesSelectedTopic(id)
+        ) {
           visibleIds.add(id)
         }
       }
     }
 
     return visibleIds.size
-  }, [articleTimeById, baseGeoJson, timelineBounds, timelineRange])
+  }, [
+    articleMatchesSelectedTopic,
+    articleTimeById,
+    baseGeoJson,
+    timelineBounds,
+    timelineRange,
+  ])
 
   const visibleArticleIds = useMemo(() => {
     const ids = new Set<string>()
-    for (const feature of filteredGeoJson.features) {
+    for (const feature of topicFilteredGeoJson.features) {
       for (const id of feature.properties?.ids ?? []) {
         ids.add(id)
       }
     }
     return ids
-  }, [filteredGeoJson])
+  }, [topicFilteredGeoJson])
 
   const countryArticleCounts = useMemo(() => {
     const idsByCountry = new Map<string, Set<string>>()
 
-    for (const feature of filteredGeoJson.features) {
+    for (const feature of topicFilteredGeoJson.features) {
       const country = feature.properties?.country
       if (typeof country !== "string") continue
 
@@ -266,27 +339,49 @@ export function MyMap() {
     return Object.fromEntries(
       Array.from(idsByCountry, ([country, ids]) => [country, ids.size])
     )
-  }, [filteredGeoJson])
+  }, [topicFilteredGeoJson])
 
   useEffect(() => {
     if (selectedArticleId && !visibleArticleIds.has(selectedArticleId)) {
       setSelectedArticleId(null)
     }
+
+    setSelectedDotArticleIds((ids) => {
+      const nextIds = ids.filter((id) => visibleArticleIds.has(id))
+      return nextIds.length === ids.length ? ids : nextIds
+    })
   }, [selectedArticleId, visibleArticleIds])
 
   const handleCountryClick = useCallback((country: CountryData) => {
     setSelectedCountry(country)
     setSelectedArticleId(null)
+    setSelectedDotArticleIds([])
     setSidebarOpen(true)
   }, [])
 
   const handleDotClick = useCallback((ids: string[]) => {
-    if (ids.length > 0) setSelectedArticleId(ids[0])
+    if (ids.length === 0) return
+
+    setSelectedDotArticleIds(ids)
+    setSelectedArticleId(ids[0])
+    setSidebarOpen(true)
+  }, [])
+
+  const handleArticleSelect = useCallback((id: string) => {
+    setSelectedArticleId(id)
+    setSelectedDotArticleIds((ids) => (
+      ids.length > 0 && ids.includes(id) ? ids : []
+    ))
+  }, [])
+
+  const handleClearSelectedDot = useCallback(() => {
+    setSelectedDotArticleIds([])
   }, [])
 
   const handleClearCountry = useCallback(() => {
     setSelectedCountry(null)
     setSelectedArticleId(null)
+    setSelectedDotArticleIds([])
   }, [])
 
   return (
@@ -301,7 +396,11 @@ export function MyMap() {
         geoJson={filteredGeoJson}
         articlesById={articlesById}
         selectedArticleId={selectedArticleId}
-        onSelectArticle={setSelectedArticleId}
+        selectedDotArticleIds={selectedDotArticleIds}
+        selectedTopic={selectedTopic}
+        onSelectedTopicChange={setSelectedTopic}
+        onSelectArticle={handleArticleSelect}
+        onClearSelectedDot={handleClearSelectedDot}
       />
 
       <div className="flex flex-1 min-h-0 flex-col gap-3">
@@ -317,6 +416,7 @@ export function MyMap() {
               </button>
             </div>
           )}
+          {!selectedCountry && <CountryColorLegend selectedTopic={selectedTopic} />}
 
           <MapComponent center={[14.5058, 46.0569]} zoom={4}>
             <MapControls position="top-right" />
@@ -327,7 +427,7 @@ export function MyMap() {
             />
             <CountryDots
               country={selectedCountry}
-              data={filteredGeoJson}
+              data={topicFilteredGeoJson}
               articlesById={articlesById}
               selectedArticleId={selectedArticleId}
               onDotClick={handleDotClick}

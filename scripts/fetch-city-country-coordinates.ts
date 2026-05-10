@@ -61,7 +61,7 @@ function build_search_url(query: string): URL {
 	const url = new URL(NOMINATIM_BASE_URL);
 	url.searchParams.set("q", query);
 	url.searchParams.set("format", "jsonv2");
-	url.searchParams.set("limit", "1");
+	url.searchParams.set("limit", "5");
 	url.searchParams.set("addressdetails", "1");
 	url.searchParams.set("accept-language", NOMINATIM_LANGUAGE);
 	const email = process.env.NOMINATIM_EMAIL?.trim();

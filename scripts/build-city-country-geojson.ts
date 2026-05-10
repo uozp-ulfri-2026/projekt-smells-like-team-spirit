@@ -15,11 +15,15 @@ type NominatimResult = {
 	name?: string;
 	lat?: string;
 	lon?: string;
+	class?: string;
+	type?: string;
 	addresstype?: string;
 	address?: {
 		city?: string;
 		town?: string;
 		village?: string;
+		hamlet?: string;
+		suburb?: string;
 		municipality?: string;
 		country?: string;
 	};
@@ -91,10 +95,87 @@ function getPairKey(city: string, country: string): string {
 	return `${city}\u0000${country}`;
 }
 
-function getFirstResult(lookup: NominatimLookup): NominatimResult | null {
-	return (
-		lookup.pair_query?.results?.[0] ?? lookup.just_city?.results?.[0] ?? null
-	);
+function normalizeComparableText(value: string | null | undefined): string {
+	return (value ?? "")
+		.normalize("NFD")
+		.replace(/[\u0300-\u036f]/g, "")
+		.trim()
+		.toLowerCase();
+}
+
+function scoreResult(
+	result: NominatimResult,
+	queryCity: string,
+	queryCountry: string,
+	sourceBias: number,
+): number {
+	const address = result.address;
+	const queryCityKey = normalizeComparableText(queryCity);
+	const queryCountryKey = normalizeComparableText(queryCountry);
+	const placeNames = [
+		result.name,
+		address?.city,
+		address?.town,
+		address?.village,
+		address?.hamlet,
+		address?.suburb,
+		address?.municipality,
+	].map(normalizeComparableText);
+	const countryKey = normalizeComparableText(address?.country);
+	const addresstype = normalizeComparableText(result.addresstype);
+	const resultClass = normalizeComparableText(result.class);
+	const resultType = normalizeComparableText(result.type);
+
+	let score = sourceBias;
+
+	if (countryKey && countryKey === queryCountryKey) score += 50;
+	if (placeNames.includes(queryCityKey)) score += 100;
+	if (normalizeComparableText(result.name) === queryCityKey) score += 35;
+
+	if (["city", "town", "village", "hamlet", "suburb"].includes(addresstype)) {
+		score += 35;
+	}
+
+	if (resultClass === "place") score += 20;
+	if (["city", "town", "village", "hamlet", "suburb"].includes(resultType)) {
+		score += 20;
+	}
+
+	if (addresstype === "municipality") score -= 35;
+	if (resultClass === "boundary" || resultType === "administrative") score -= 45;
+
+	return score;
+}
+
+function getBestResult(
+	lookup: NominatimLookup,
+	queryCity: string,
+	queryCountry: string,
+): NominatimResult | null {
+	const candidates = [
+		...(lookup.pair_query?.results ?? []).map((result) => ({
+			result,
+			sourceBias: 10,
+		})),
+		...(lookup.just_city?.results ?? []).map((result) => ({
+			result,
+			sourceBias: 0,
+		})),
+	];
+
+	if (candidates.length === 0) return null;
+
+	return candidates
+		.map((candidate) => ({
+			result: candidate.result,
+			score: scoreResult(
+				candidate.result,
+				queryCity,
+				queryCountry,
+				candidate.sourceBias,
+			),
+		}))
+		.sort((left, right) => right.score - left.score)[0]?.result ?? null;
 }
 
 function getFeatureLabels(result: NominatimResult): {
@@ -106,6 +187,8 @@ function getFeatureLabels(result: NominatimResult): {
 		normalizeText(address?.city) ??
 		normalizeText(address?.town) ??
 		normalizeText(address?.village) ??
+		normalizeText(address?.hamlet) ??
+		normalizeText(address?.suburb) ??
 		normalizeText(address?.municipality) ??
 		normalizeText(result.name) ??
 		"Unknown";
@@ -204,7 +287,7 @@ async function main(): Promise<void> {
 			continue;
 		}
 
-		const result = getFirstResult(row);
+		const result = getBestResult(row, queryCity, queryCountry);
 		if (!result) {
 			console.warn(
 				`⚠️ Nominatim row for ${queryCity}, ${queryCountry} has no usable results. Skipping.`,

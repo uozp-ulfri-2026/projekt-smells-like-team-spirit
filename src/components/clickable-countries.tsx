@@ -8,6 +8,7 @@ import {
     type MapGeoJSONFeature,
 } from "maplibre-gl";
 import { getArticleCountryName } from "@/lib/country-names";
+import { buildCountryArticleColorExpression } from "@/lib/country-article-scale";
 
 export interface CountryData {
     name: string;
@@ -33,6 +34,7 @@ interface ClickableCountriesProps {
 
 const source_id = "countries-source";
 const layer_id = "countries-fill";
+const selected_halo_layer_id = "countries-selected-halo";
 const outline_layer_id = "countries-outline";
 const overview_center: [number, number] = [14.5058, 46.0569];
 const overview_zoom = 4;
@@ -45,21 +47,7 @@ const empty_countries_geojson: CountriesFeatureCollection = {
 };
 
 const choropleth_fill_color = [
-    "interpolate",
-    ["linear"],
-    ["coalesce", ["get", "articleCount"], 0],
-    0,
-    "#334155",
-    1,
-    "#164e63",
-    5,
-    "#0f766e",
-    25,
-    "#14b8a6",
-    100,
-    "#eab308",
-    500,
-    "#facc15",
+    ...buildCountryArticleColorExpression(),
 ] as ExpressionSpecification;
 
 const choropleth_fill_opacity = [
@@ -100,10 +88,39 @@ function selectedFillOpacity(selectedCountryName: string): ExpressionSpecificati
     return [
         "case",
         ["==", ["get", "articleCountryName"], selectedCountryName],
-        0.16,
+        0.24,
         ["boolean", ["feature-state", "hover"], false],
         0.2,
-        0.1,
+        0.08,
+    ] as ExpressionSpecification;
+}
+
+function selectedHaloColor(selectedCountryName: string): ExpressionSpecification {
+    return [
+        "case",
+        ["==", ["get", "articleCountryName"], selectedCountryName],
+        "#facc15",
+        "rgba(0, 0, 0, 0)",
+    ] as ExpressionSpecification;
+}
+
+function selectedHaloWidth(selectedCountryName: string): ExpressionSpecification {
+    return [
+        "case",
+        ["==", ["get", "articleCountryName"], selectedCountryName],
+        7,
+        0,
+    ] as ExpressionSpecification;
+}
+
+function selectedHaloOpacity(selectedCountryName: string | null): ExpressionSpecification | number {
+    if (!selectedCountryName) return 0;
+
+    return [
+        "case",
+        ["==", ["get", "articleCountryName"], selectedCountryName],
+        0.32,
+        0,
     ] as ExpressionSpecification;
 }
 
@@ -122,7 +139,7 @@ function selectedOutlineWidth(selectedCountryName: string): ExpressionSpecificat
     return [
         "case",
         ["==", ["get", "articleCountryName"], selectedCountryName],
-        2.5,
+        3,
         ["boolean", ["feature-state", "hover"], false],
         1.25,
         0,
@@ -196,6 +213,8 @@ export function ClickableCountries({
 }: ClickableCountriesProps) {
     const { map, isLoaded } = useMap();
     const selectedCountryName = selectedCountry?.name ?? null;
+    const selectedCountryNameRef = useRef<string | null>(selectedCountryName);
+    const onCountryClickRef = useRef<typeof onCountryClick>(onCountryClick);
     const previousSelectedCountryName = useRef<string | null>(null);
     const [countriesGeoJson, setCountriesGeoJson] =
         useState<CountriesFeatureCollection>(empty_countries_geojson);
@@ -218,6 +237,14 @@ export function ClickableCountries({
             }),
         };
     }, [countriesGeoJson, countryArticleCounts]);
+
+    useEffect(() => {
+        selectedCountryNameRef.current = selectedCountryName;
+    }, [selectedCountryName]);
+
+    useEffect(() => {
+        onCountryClickRef.current = onCountryClick;
+    }, [onCountryClick]);
 
     useEffect(() => {
         let cancelled = false;
@@ -260,6 +287,19 @@ export function ClickableCountries({
                 paint: {
                     "fill-color": choropleth_fill_color,
                     "fill-opacity": choropleth_fill_opacity,
+                },
+            });
+        }
+
+        if (!map.getLayer(selected_halo_layer_id)) {
+            map.addLayer({
+                id: selected_halo_layer_id,
+                type: "line",
+                source: source_id,
+                paint: {
+                    "line-color": "rgba(0, 0, 0, 0)",
+                    "line-width": 0,
+                    "line-opacity": 0,
                 },
             });
         }
@@ -320,7 +360,11 @@ export function ClickableCountries({
         };
 
         const handle_click = (e: MapEventWithFeatures) => {
-            if (e.features && e.features.length > 0 && onCountryClick) {
+            const currentOnCountryClick = onCountryClickRef.current;
+
+            if (e.defaultPrevented || !currentOnCountryClick) return;
+
+            if (e.features && e.features.length > 0) {
                 const properties = e.features[0].properties;
 
                 // Extract Natural Earth specific properties
@@ -330,6 +374,7 @@ export function ClickableCountries({
                             ? properties.articleCountryName
                             : getArticleCountryName(properties);
                     if (name === "Unknown") return;
+                    if (name === selectedCountryNameRef.current) return;
 
                     const bounds = geometryBounds(e.features[0].geometry);
                     if (bounds) {
@@ -347,7 +392,7 @@ export function ClickableCountries({
                         });
                     }
 
-                    onCountryClick({
+                    currentOnCountryClick({
                         name,
                         isoA3: typeof properties.ISO_A3 === "string" ? properties.ISO_A3 : "",
                     });
@@ -367,11 +412,12 @@ export function ClickableCountries({
             // Ensure the map style is still valid before removing layers/sources
             if (map.getStyle()) {
                 if (map.getLayer(outline_layer_id)) map.removeLayer(outline_layer_id);
+                if (map.getLayer(selected_halo_layer_id)) map.removeLayer(selected_halo_layer_id);
                 if (map.getLayer(layer_id)) map.removeLayer(layer_id);
                 if (map.getSource(source_id)) map.removeSource(source_id);
             }
         };
-    }, [map, isLoaded, onCountryClick]);
+    }, [map, isLoaded]);
 
     useEffect(() => {
         if (!isLoaded || !map) return;
@@ -396,6 +442,26 @@ export function ClickableCountries({
         );
 
         if (!map.getLayer(outline_layer_id)) return;
+
+        if (map.getLayer(selected_halo_layer_id)) {
+            map.setPaintProperty(
+                selected_halo_layer_id,
+                "line-color",
+                selectedCountryName
+                    ? selectedHaloColor(selectedCountryName)
+                    : "rgba(0, 0, 0, 0)"
+            );
+            map.setPaintProperty(
+                selected_halo_layer_id,
+                "line-width",
+                selectedCountryName ? selectedHaloWidth(selectedCountryName) : 0
+            );
+            map.setPaintProperty(
+                selected_halo_layer_id,
+                "line-opacity",
+                selectedHaloOpacity(selectedCountryName)
+            );
+        }
 
         map.setPaintProperty(
             outline_layer_id,

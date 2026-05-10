@@ -3,6 +3,7 @@ import { useMap } from "@/components/map";
 import type { CountryData } from "@/components/clickable-countries";
 import type { GeoJSONSource, MapGeoJSONFeature, MapMouseEvent } from "maplibre-gl";
 import { getTopicStyle } from "@/lib/topic-colors";
+import { getCityCoordinateOverride } from "@/lib/city-coordinate-overrides";
 
 type LeanArticle = {
 	_id: string;
@@ -14,6 +15,7 @@ type DotProperties = {
 	country?: string;
 	ids?: string[];
 	articleCount?: number;
+	cityTopicCount?: number;
 	primaryArticleId?: string;
 	primaryTopic?: string;
 	topicColor?: string;
@@ -46,43 +48,42 @@ function parseIds(idsRaw: unknown): string[] {
 	return idsRaw == null ? [] : [String(idsRaw)];
 }
 
-function resolvePrimaryTopic(
-	ids: string[],
-	articlesById: Record<string, LeanArticle>,
-	selectedArticleId: string | null,
-): string {
-	if (selectedArticleId && ids.includes(selectedArticleId)) {
-		return articlesById[selectedArticleId]?.["llm-topic"] || "Brez teme";
+const GOLDEN_ANGLE = Math.PI * (3 - Math.sqrt(5));
+const KM_PER_LATITUDE_DEGREE = 110.574;
+const KM_PER_LONGITUDE_DEGREE = 111.32;
+
+function getFeatureCoordinates(
+	feature: GeoJSON.Feature<GeoJSON.Point, DotProperties>,
+): [number, number] {
+	const override = getCityCoordinateOverride(
+		feature.properties?.country,
+		feature.properties?.city,
+	);
+	if (override) return override;
+
+	const [lng, lat] = feature.geometry.coordinates;
+	return [lng, lat];
+}
+
+function offsetTopicCoordinates(
+	coordinates: GeoJSON.Position,
+	index: number,
+	total: number,
+): [number, number] {
+	const [lng, lat] = coordinates;
+	if (total <= 1 || !Number.isFinite(lng) || !Number.isFinite(lat)) {
+		return [lng, lat];
 	}
 
-	const topicCounts = new Map<string, { count: number; firstIndex: number }>();
+	const angle = index * GOLDEN_ANGLE - Math.PI / 2;
+	const radiusKm = Math.min(0.9, 0.18 + total * 0.045);
+	const latitudeRadians = lat * Math.PI / 180;
+	const lngScale = KM_PER_LONGITUDE_DEGREE * Math.max(0.2, Math.cos(latitudeRadians));
 
-	ids.forEach((id, index) => {
-		const topic = articlesById[id]?.["llm-topic"] || "Brez teme";
-		const current = topicCounts.get(topic);
-		if (current) {
-			current.count += 1;
-		} else {
-			topicCounts.set(topic, { count: 1, firstIndex: index });
-		}
-	});
-
-	let bestTopic = "Brez teme";
-	let bestCount = -1;
-	let bestIndex = Number.POSITIVE_INFINITY;
-
-	for (const [topic, value] of topicCounts) {
-		if (
-			value.count > bestCount ||
-			(value.count === bestCount && value.firstIndex < bestIndex)
-		) {
-			bestTopic = topic;
-			bestCount = value.count;
-			bestIndex = value.firstIndex;
-		}
-	}
-
-	return bestTopic;
+	return [
+		lng + Math.cos(angle) * radiusKm / lngScale,
+		lat + Math.sin(angle) * radiusKm / KM_PER_LATITUDE_DEGREE,
+	];
 }
 
 export function CountryDots({
@@ -105,31 +106,81 @@ export function CountryDots({
 	);
 
 	const enrichedData = useMemo<GeoJSON.FeatureCollection<GeoJSON.Point, DotProperties>>(() => {
-		return {
-			...data,
-			features: data.features.map((feature) => {
-				const ids = parseIds(feature.properties?.ids);
-				const isSelected = selectedArticleId ? ids.includes(selectedArticleId) : false;
-				const primaryArticleId =
-					isSelected && selectedArticleId ? selectedArticleId : ids[0];
-				const primaryTopic = resolvePrimaryTopic(ids, articlesById, selectedArticleId);
-				const topicColor = getTopicStyle(primaryTopic).color;
+		if (!country_name) {
+			return {
+				...data,
+				features: [],
+			};
+		}
 
-				return {
+		const features: GeoJSON.Feature<GeoJSON.Point, DotProperties>[] = [];
+
+		for (const feature of data.features) {
+			if (feature.properties?.country !== country_name) continue;
+
+			const ids = Array.from(new Set(parseIds(feature.properties?.ids)));
+			const groupedIdsByTopic = new Map<string, string[]>();
+
+			for (const articleId of ids) {
+				const primaryTopic = articlesById[articleId]?.["llm-topic"] || "Brez teme";
+				const topicIds = groupedIdsByTopic.get(primaryTopic);
+				if (topicIds) {
+					topicIds.push(articleId);
+				} else {
+					groupedIdsByTopic.set(primaryTopic, [articleId]);
+				}
+			}
+
+			const topicGroups = Array.from(groupedIdsByTopic.entries()).sort(
+				([leftTopic, leftIds], [rightTopic, rightIds]) =>
+					rightIds.length - leftIds.length || leftTopic.localeCompare(rightTopic, "sl"),
+			);
+			const cityTopicCount = topicGroups.length;
+
+			topicGroups.forEach(([primaryTopic, topicIds], index) => {
+				const primaryArticleId =
+					selectedArticleId && topicIds.includes(selectedArticleId)
+						? selectedArticleId
+						: topicIds[0];
+				const topicColor = getTopicStyle(primaryTopic).color;
+				const baseCoordinates = getFeatureCoordinates(feature);
+				const coordinates = offsetTopicCoordinates(
+					baseCoordinates,
+					index,
+					cityTopicCount,
+				);
+
+				features.push({
 					...feature,
+					id: [
+						feature.properties?.country ?? "",
+						feature.properties?.city ?? "",
+						primaryTopic,
+						baseCoordinates.join(","),
+					].join(":"),
+					geometry: {
+						...feature.geometry,
+						coordinates,
+					},
 					properties: {
 						...feature.properties,
-						ids,
-						articleCount: ids.length,
+						ids: topicIds,
+						articleCount: topicIds.length,
+						cityTopicCount,
 						primaryArticleId,
 						primaryTopic,
 						topicColor,
-						isSelected,
+						isSelected: selectedArticleId ? topicIds.includes(selectedArticleId) : false,
 					},
-				};
-			}),
+				});
+			});
+		}
+
+		return {
+			...data,
+			features,
 		};
-	}, [articlesById, data, selectedArticleId]);
+	}, [articlesById, country_name, data, selectedArticleId]);
 
 	useEffect(() => {
 		if (!isLoaded || !map) return;
@@ -148,8 +199,8 @@ export function CountryDots({
 				filter: ["==", ["get", "isSelected"], true],
 				paint: {
 					"circle-color": ["coalesce", ["get", "topicColor"], "#f97316"],
-					"circle-radius": 12,
-					"circle-opacity": 0.18,
+					"circle-radius": 9,
+					"circle-opacity": 0.16,
 					"circle-stroke-color": "#ffffff",
 					"circle-stroke-width": 1,
 				},
@@ -164,10 +215,46 @@ export function CountryDots({
 					"circle-radius": [
 						"case",
 						["boolean", ["get", "isSelected"], false],
-						8.5,
+						[
+							"interpolate",
+							["linear"],
+							["coalesce", ["get", "articleCount"], 1],
+							1,
+							7,
+							5,
+							7.8,
+							25,
+							9,
+							100,
+							10,
+						],
 						["boolean", ["feature-state", "hover"], false],
-						7,
-						5,
+						[
+							"interpolate",
+							["linear"],
+							["coalesce", ["get", "articleCount"], 1],
+							1,
+							5.6,
+							5,
+							6.4,
+							25,
+							7.6,
+							100,
+							8.6,
+						],
+						[
+							"interpolate",
+							["linear"],
+							["coalesce", ["get", "articleCount"], 1],
+							1,
+							4.2,
+							5,
+							5,
+							25,
+							6.2,
+							100,
+							7.2,
+						],
 					],
 					"circle-opacity": [
 						"case",
@@ -180,10 +267,10 @@ export function CountryDots({
 					"circle-stroke-width": [
 						"case",
 						["boolean", ["get", "isSelected"], false],
-						3,
-						["boolean", ["feature-state", "hover"], false],
 						2.5,
-						1.35,
+						["boolean", ["feature-state", "hover"], false],
+						2,
+						1.2,
 					],
 					"circle-stroke-color": [
 						"case",
@@ -231,6 +318,9 @@ export function CountryDots({
 
 		const handleClick = (e: MapEventWithFeatures) => {
 			try {
+				e.preventDefault();
+				e.originalEvent.stopPropagation();
+
 				const features = e.features;
 				if (!features || features.length === 0) return;
 				const props = features[0].properties as Record<string, any>;
@@ -329,8 +419,8 @@ export function CountryDots({
 			if (!map.getLayer(pulse_layer_id)) return;
 
 			const wave = (Math.sin(time / 260) + 1) / 2;
-			map.setPaintProperty(pulse_layer_id, "circle-radius", 10 + wave * 7);
-			map.setPaintProperty(pulse_layer_id, "circle-opacity", 0.28 - wave * 0.2);
+			map.setPaintProperty(pulse_layer_id, "circle-radius", 8 + wave * 5);
+			map.setPaintProperty(pulse_layer_id, "circle-opacity", 0.24 - wave * 0.16);
 			frame = window.requestAnimationFrame(animate);
 		};
 

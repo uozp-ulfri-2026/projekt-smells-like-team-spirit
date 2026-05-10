@@ -60,17 +60,24 @@ export default function Explorator({
   geoJson,
   articlesById,
   selectedArticleId,
+  selectedDotArticleIds,
+  selectedTopic,
+  onSelectedTopicChange,
   onSelectArticle,
+  onClearSelectedDot,
 }: {
   country: CountryData | null
   geoJson: GeoJSON.FeatureCollection<GeoJSON.Point, { city?: string; country?: string; ids?: string[] }>
   articlesById: Record<string, LeanArticle>
   selectedArticleId: string | null
+  selectedDotArticleIds: string[]
+  selectedTopic: string
+  onSelectedTopicChange: (topic: string) => void
   onSelectArticle: (id: string) => void
+  onClearSelectedDot: () => void
 }) {
   const { open } = useSidebar()
   const [searchQuery, setSearchQuery] = useState("")
-  const [selectedTopic, setSelectedTopic] = useState("all")
   const [currentPage, setCurrentPage] = useState(1)
 
   const geoData = useMemo<CityFeature[]>(() => {
@@ -115,26 +122,57 @@ export default function Explorator({
     return out
   }, [geoData, articlesById, country])
 
+  const rowsById = useMemo(() => {
+    return new Map(rows.map((row) => [row.id, row]))
+  }, [rows])
+
+  const selectedDotRows = useMemo(() => {
+    if (selectedDotArticleIds.length === 0) return []
+
+    return selectedDotArticleIds
+      .map((id) => rowsById.get(id))
+      .filter((row): row is SearchRow => Boolean(row))
+  }, [rowsById, selectedDotArticleIds])
+
   const topics = useMemo(() => {
     return Array.from(new Set(rows.map((r) => r.topic))).sort((a, b) => a.localeCompare(b, "sl"))
   }, [rows])
 
+  const topicOptions = useMemo(() => {
+    const options = new Set(topics)
+
+    if (selectedTopic !== "all") {
+      options.add(selectedTopic)
+    }
+
+    return Array.from(options).sort((a, b) => a.localeCompare(b, "sl"))
+  }, [selectedTopic, topics])
+
   const filteredRows = useMemo(() => {
     const q = searchQuery.trim().toLowerCase()
-    return rows
+    const sourceRows = selectedDotRows.length > 0 ? selectedDotRows : rows
+
+    return sourceRows
       .filter((row) => {
         const cityMatch = q.length === 0 || row.city.toLowerCase().includes(q)
         const topicMatch = selectedTopic === "all" || row.topic === selectedTopic
         return cityMatch && topicMatch
       })
       .sort((a, b) => a.title.localeCompare(b.title, "sl"))
-  }, [rows, searchQuery, selectedTopic])
+  }, [rows, searchQuery, selectedDotRows, selectedTopic])
 
   const totalPages = Math.max(1, Math.ceil(filteredRows.length / PAGE_SIZE))
 
   useEffect(() => {
     setCurrentPage(1)
   }, [searchQuery, selectedTopic, country])
+
+  useEffect(() => {
+    if (selectedDotArticleIds.length > 0) {
+      setSearchQuery("")
+      setCurrentPage(1)
+    }
+  }, [selectedDotArticleIds])
 
   useEffect(() => {
     if (currentPage > totalPages) {
@@ -172,13 +210,13 @@ export default function Explorator({
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
           />
-          <Select value={selectedTopic} onValueChange={setSelectedTopic}>
+          <Select value={selectedTopic} onValueChange={onSelectedTopicChange}>
             <SelectTrigger>
               <SelectValue placeholder="Izberi temo" />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">Vse teme</SelectItem>
-              {topics.map((topic) => {
+              {topicOptions.map((topic) => {
                 const topicStyle = getTopicStyle(topic)
 
                 return (
@@ -200,6 +238,28 @@ export default function Explorator({
 
         <SidebarContent>
           <div className="space-y-2 px-2 pb-2">
+            {selectedDotRows.length > 0 && (
+              <div className="rounded-md border bg-muted/45 px-3 py-2 text-xs">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="font-medium text-foreground">
+                    {selectedDotRows.length === 1
+                      ? "Selected dot article"
+                      : `${selectedDotRows.length} articles at selected dot`}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={onClearSelectedDot}
+                    className="shrink-0 text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+                  >
+                    Clear
+                  </button>
+                </div>
+                <p className="mt-1 truncate text-muted-foreground">
+                  {selectedDotRows[0].topic} - {selectedDotRows[0].city}
+                </p>
+              </div>
+            )}
+
             {filteredRows.length === 0 ? (
               <div className="py-4 text-sm text-gray-500">Ni zadetkov za izbrane filtre.</div>
             ) : (
