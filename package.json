@@ -35,15 +35,13 @@
     "yaml": "^2.8.4",
     "zod": "^4.4.3"
   },
-  "name": "my-app",
+  "name": "sloveniski-svet",
   "scripts": {
     "dev": "convex dev --start 'vite --open'",
     "start": "vite --open",
     "build": "tsc -b && vite build",
-    "lint": "tsc && eslint .  --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
     "preview": "vite preview",
     "ui": "bunx --bun shadcn@latest",
-    "build:mmc-lean": "bun scripts/build-mmc-lean.ts",
     "check": "ultracite check",
     "fix": "ultracite fix"
   },

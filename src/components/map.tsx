@@ -1340,11 +1340,11 @@ function mergeArcPaint(
       baseValue === undefined
         ? hoverValue
         : [
-          "case",
-          ["boolean", ["feature-state", "hover"], false],
-          hoverValue,
-          baseValue,
-        ];
+            "case",
+            ["boolean", ["feature-state", "hover"], false],
+            hoverValue,
+            baseValue,
+          ];
   }
   return merged as MapArcLinePaint;
 }
@@ -1562,8 +1562,8 @@ function MapArc<T extends MapArcDatum = MapArcDatum>({
       featureId == null
         ? undefined
         : latestRef.current.data.find(
-          (arc) => String(arc.id) === String(featureId)
-        );
+            (arc) => String(arc.id) === String(featureId)
+          );
 
     const handleMouseMove = (e: MapLibreGL.MapLayerMouseEvent) => {
       const featureId = e.features?.[0]?.id as string | number | undefined;
