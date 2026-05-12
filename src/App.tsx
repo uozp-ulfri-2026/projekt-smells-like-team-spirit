@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import ArticleCard from "@/components/article-card";
 import type { CountryData } from "@/components/clickable-countries";
 import { ClickableCountries } from "@/components/clickable-countries";
@@ -40,6 +40,26 @@ interface TimelineArticle {
 }
 
 const DAY_MS = 24 * 60 * 60 * 1000;
+const AUTOPLAY_INTERVAL_MS = 450;
+const AUTOPLAY_TARGET_STEPS = 140;
+const AUTOPLAY_DEFAULT_WINDOW_MS = 180 * DAY_MS;
+const AUTOPLAY_MIN_WINDOW_MS = 30 * DAY_MS;
+
+type DatasetId = "v2" | "old";
+
+const DATASETS: Record<
+  DatasetId,
+  { articlePath: string; geoJsonPath: string }
+> = {
+  v2: {
+    articlePath: "/mmc-lean.json",
+    geoJsonPath: "/output.geojson",
+  },
+  old: {
+    articlePath: "/mmc-lean.old.json",
+    geoJsonPath: "/output.old.geojson",
+  },
+};
 
 const EMPTY_GEOJSON: CityFeatureCollection = {
   type: "FeatureCollection",
@@ -65,6 +85,74 @@ function formatTimelineDate(time: number | undefined): string {
     return "";
   }
   return dateFormatter.format(new Date(time));
+}
+
+function getSelectedDataset(): {
+  id: DatasetId;
+  articlePath: string;
+  geoJsonPath: string;
+} {
+  const params = new URLSearchParams(window.location.search);
+  const requestedDataset = params.get("dataset");
+  const id: DatasetId = requestedDataset === "old" ? "old" : "v2";
+
+  return {
+    id,
+    ...DATASETS[id],
+  };
+}
+
+function normalizeTimelineRange(
+  range: [number, number],
+  bounds: { min: number; max: number }
+): [number, number] {
+  const [rawStart, rawEnd] = range;
+  const start = Math.max(bounds.min, Math.min(rawStart, rawEnd, bounds.max));
+  const end = Math.min(bounds.max, Math.max(rawStart, rawEnd, bounds.min));
+
+  return [start, end];
+}
+
+function getPlaybackWindowMs(
+  range: [number, number],
+  bounds: { min: number; max: number }
+): number {
+  const total = Math.max(DAY_MS, bounds.max - bounds.min);
+  const [start, end] = normalizeTimelineRange(range, bounds);
+  const currentWindow = Math.max(DAY_MS, end - start);
+
+  if (currentWindow < total * 0.95) {
+    return Math.min(currentWindow, total);
+  }
+
+  return Math.min(
+    total,
+    AUTOPLAY_DEFAULT_WINDOW_MS,
+    Math.max(AUTOPLAY_MIN_WINDOW_MS, total / 8)
+  );
+}
+
+function getPlaybackStepMs(bounds: { min: number; max: number }): number {
+  const total = Math.max(DAY_MS, bounds.max - bounds.min);
+  const rawStep = total / AUTOPLAY_TARGET_STEPS;
+  return Math.max(DAY_MS, Math.round(rawStep / DAY_MS) * DAY_MS);
+}
+
+function buildPlaybackStartRange(
+  range: [number, number],
+  bounds: { min: number; max: number }
+): [number, number] {
+  const [start, end] = normalizeTimelineRange(range, bounds);
+  const total = Math.max(DAY_MS, bounds.max - bounds.min);
+  const windowMs = getPlaybackWindowMs(range, bounds);
+  const coversWholeTimeline = end - start >= total * 0.95;
+  const isAtEnd = end >= bounds.max - DAY_MS;
+
+  if (coversWholeTimeline || isAtEnd) {
+    return [bounds.min, Math.min(bounds.max, bounds.min + windowMs)];
+  }
+
+  return [start, Math.min(bounds.max, start + windowMs)];
 }
 
 function useDebouncedValue<T>(value: T, delay: number): T {
@@ -123,7 +211,8 @@ export default function App() {
   );
 }
 
-function MyMap() {
+export function MyMap() {
+  const dataset = useMemo(() => getSelectedDataset(), []);
   const [selectedCountry, setSelectedCountry] = useState<CountryData | null>(
     null
   );
@@ -148,22 +237,28 @@ function MyMap() {
     null
   );
   const [selectedTopic, setSelectedTopic] = useState("all");
+  const [isTimelinePlaying, setIsTimelinePlaying] = useState(false);
+  const timelineRangeRef = useRef<[number, number] | null>(timelineRange);
   const debouncedTimelineRange = useDebouncedValue(timelineRange, 250);
 
   useEffect(() => {
+    timelineRangeRef.current = timelineRange;
+  }, [timelineRange]);
+
+  useEffect(() => {
     Promise.all([
-      fetch("/output.geojson").then((response) => {
+      fetch(dataset.geoJsonPath).then((response) => {
         if (!response.ok) {
           throw new Error(
-            `HTTP ${response.status}: Failed to fetch /output.geojson`
+            `HTTP ${response.status}: Failed to fetch ${dataset.geoJsonPath}`
           );
         }
         return response.json() as Promise<CityFeatureCollection>;
       }),
-      fetch("/mmc-lean.json").then((response) => {
+      fetch(dataset.articlePath).then((response) => {
         if (!response.ok) {
           throw new Error(
-            `HTTP ${response.status}: Failed to fetch /mmc-lean.json`
+            `HTTP ${response.status}: Failed to fetch ${dataset.articlePath}`
           );
         }
         return response.json() as Promise<LeanArticle[]>;
@@ -194,7 +289,7 @@ function MyMap() {
         setTimelineLoadError(null);
         setTimelineRange(
           sortedTimeline.length > 0
-            ? [sortedTimeline[0].time, sortedTimeline.at(-1).time]
+            ? [sortedTimeline[0].time, sortedTimeline.at(-1)?.time ?? 0]
             : null
         );
       })
@@ -204,9 +299,9 @@ function MyMap() {
         setArticlesById({});
         setTimeline([]);
         setTimelineRange(null);
-        setTimelineLoadError("Časovnice ni bilo mogoče naložiti.");
+        setTimelineLoadError("Casovnice ni bilo mogoce naloziti.");
       });
-  }, []);
+  }, [dataset.articlePath, dataset.geoJsonPath]);
 
   const articleTimeById = useMemo(() => {
     const byId = new Map<string, number>();
@@ -225,9 +320,48 @@ function MyMap() {
 
     return {
       min: timeline[0].time,
-      max: timeline.at(-1).time,
+      max: timeline?.at(-1)?.time ?? 0,
     };
   }, [timeline]);
+
+  useEffect(() => {
+    if (!(timelineBounds && timelineRange)) {
+      setIsTimelinePlaying(false);
+    }
+  }, [timelineBounds, timelineRange]);
+
+  useEffect(() => {
+    if (!(isTimelinePlaying && timelineBounds)) {
+      return;
+    }
+
+    const interval = window.setInterval(() => {
+      const currentRange = timelineRangeRef.current;
+      if (!currentRange) {
+        setIsTimelinePlaying(false);
+        return;
+      }
+
+      const windowMs = getPlaybackWindowMs(currentRange, timelineBounds);
+      const stepMs = getPlaybackStepMs(timelineBounds);
+      const [start] = normalizeTimelineRange(currentRange, timelineBounds);
+      const nextStart = Math.min(
+        timelineBounds.max - windowMs,
+        Math.max(timelineBounds.min, start + stepMs)
+      );
+      const nextEnd = Math.min(timelineBounds.max, nextStart + windowMs);
+      const nextRange: [number, number] = [nextStart, nextEnd];
+
+      timelineRangeRef.current = nextRange;
+      setTimelineRange(nextRange);
+
+      if (nextEnd >= timelineBounds.max) {
+        setIsTimelinePlaying(false);
+      }
+    }, AUTOPLAY_INTERVAL_MS);
+
+    return () => window.clearInterval(interval);
+  }, [isTimelinePlaying, timelineBounds]);
 
   const normalizedTimelineRange = useMemo<[number, number] | null>(() => {
     if (!(debouncedTimelineRange && timelineBounds)) {
@@ -444,6 +578,44 @@ function MyMap() {
     setSelectedDotArticleIds([]);
   }, []);
 
+  const handleTimelineRangeChange = useCallback((value: [number, number]) => {
+    setIsTimelinePlaying(false);
+    setTimelineRange(value);
+  }, []);
+
+  const handleTimelinePlayPause = useCallback(() => {
+    if (!(timelineBounds && timelineRange)) {
+      return;
+    }
+
+    setIsTimelinePlaying((playing) => {
+      if (playing) {
+        return false;
+      }
+
+      const nextRange = buildPlaybackStartRange(timelineRange, timelineBounds);
+      timelineRangeRef.current = nextRange;
+      setTimelineRange(nextRange);
+      return true;
+    });
+  }, [timelineBounds, timelineRange]);
+
+  const handleTimelineRestart = useCallback(() => {
+    if (!(timelineBounds && timelineRange)) {
+      return;
+    }
+
+    const windowMs = getPlaybackWindowMs(timelineRange, timelineBounds);
+    const nextRange: [number, number] = [
+      timelineBounds.min,
+      Math.min(timelineBounds.max, timelineBounds.min + windowMs),
+    ];
+
+    timelineRangeRef.current = nextRange;
+    setTimelineRange(nextRange);
+    setIsTimelinePlaying(false);
+  }, [timelineBounds, timelineRange]);
+
   const handleClearCountry = useCallback(() => {
     setSelectedCountry(null);
     setSelectedArticleId(null);
@@ -505,6 +677,7 @@ function MyMap() {
           </MapComponent>
 
           <ArticleCard
+            articlePath={dataset.articlePath}
             id={selectedArticleId}
             onClose={() => setSelectedArticleId(null)}
           />
@@ -516,9 +689,12 @@ function MyMap() {
             endLabel={formatTimelineDate(
               Math.max(timelineRange[0], timelineRange[1])
             )}
+            isPlaying={isTimelinePlaying}
             max={timelineBounds.max}
             min={timelineBounds.min}
-            onValueChange={setTimelineRange}
+            onPlayPause={handleTimelinePlayPause}
+            onRestart={handleTimelineRestart}
+            onValueChange={handleTimelineRangeChange}
             startLabel={formatTimelineDate(
               Math.min(timelineRange[0], timelineRange[1])
             )}
