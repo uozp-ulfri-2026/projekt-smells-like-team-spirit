@@ -8,36 +8,16 @@ import { TimelineSlider } from "@/components/timeline-slider";
 import { Button } from "@/components/ui/button";
 import { SidebarProvider } from "@/components/ui/sidebar";
 import { COUNTRY_ARTICLE_COLOR_STOPS } from "@/lib/country-article-scale";
+import {
+  type CityFeature,
+  type CityFeatureCollection,
+  EMPTY_GEOJSON,
+  useMmcArticles,
+  useMmcGeoJson,
+} from "@/lib/mmc-data";
 import { Map as MapComponent, MapControls } from "./components/map";
 import { Card } from "./components/ui/card";
 import { LineShadowText } from "./components/ui/line-shadow-text";
-
-interface LeanArticle {
-  _id: string;
-  date?: string;
-  lead?: string;
-  "llm-topic"?: string;
-  title?: string;
-  url?: string;
-}
-
-interface CityProperties {
-  city?: string;
-  country?: string;
-  ids?: string[];
-  [key: string]: unknown;
-}
-
-type CityFeature = GeoJSON.Feature<GeoJSON.Point, CityProperties>;
-type CityFeatureCollection = GeoJSON.FeatureCollection<
-  GeoJSON.Point,
-  CityProperties
->;
-
-interface TimelineArticle {
-  id: string;
-  time: number;
-}
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const AUTOPLAY_INTERVAL_MS = 450;
@@ -61,24 +41,11 @@ const DATASETS: Record<
   },
 };
 
-const EMPTY_GEOJSON: CityFeatureCollection = {
-  type: "FeatureCollection",
-  features: [],
-};
-
 const dateFormatter = new Intl.DateTimeFormat("sl-SI", {
   day: "numeric",
   month: "short",
   year: "numeric",
 });
-
-function parseArticleTime(article: LeanArticle): number | null {
-  if (!article.date) {
-    return null;
-  }
-  const time = Date.parse(article.date);
-  return Number.isFinite(time) ? time : null;
-}
 
 function formatTimelineDate(time: number | undefined): string {
   if (time === undefined) {
@@ -223,85 +190,43 @@ export function MyMap() {
     []
   );
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [baseGeoJson, setBaseGeoJson] = useState<CityFeatureCollection | null>(
-    null
-  );
-  const [articlesById, setArticlesById] = useState<Record<string, LeanArticle>>(
-    {}
-  );
-  const [timeline, setTimeline] = useState<TimelineArticle[]>([]);
   const [timelineRange, setTimelineRange] = useState<[number, number] | null>(
-    null
-  );
-  const [timelineLoadError, setTimelineLoadError] = useState<string | null>(
     null
   );
   const [selectedTopic, setSelectedTopic] = useState("all");
   const [isTimelinePlaying, setIsTimelinePlaying] = useState(false);
   const timelineRangeRef = useRef<[number, number] | null>(timelineRange);
   const debouncedTimelineRange = useDebouncedValue(timelineRange, 250);
+  const { data: geoJsonData, error: geoJsonError } = useMmcGeoJson(
+    dataset.geoJsonPath
+  );
+  const { data: articlesData, error: articlesError } = useMmcArticles(
+    dataset.articlePath
+  );
+  const baseGeoJson = geoJsonData ?? EMPTY_GEOJSON;
+  const articlesById = articlesData?.byId ?? {};
+  const timeline = articlesData?.timeline ?? [];
+  const timelineLoadError =
+    geoJsonError || articlesError ? "Casovnice ni bilo mogoce naloziti." : null;
 
   useEffect(() => {
     timelineRangeRef.current = timelineRange;
   }, [timelineRange]);
 
   useEffect(() => {
-    Promise.all([
-      fetch(dataset.geoJsonPath).then((response) => {
-        if (!response.ok) {
-          throw new Error(
-            `HTTP ${response.status}: Failed to fetch ${dataset.geoJsonPath}`
-          );
-        }
-        return response.json() as Promise<CityFeatureCollection>;
-      }),
-      fetch(dataset.articlePath).then((response) => {
-        if (!response.ok) {
-          throw new Error(
-            `HTTP ${response.status}: Failed to fetch ${dataset.articlePath}`
-          );
-        }
-        return response.json() as Promise<LeanArticle[]>;
-      }),
-    ])
-      .then(([geoJson, leanRows]) => {
-        const byId: Record<string, LeanArticle> = {};
-        const sortedTimeline: TimelineArticle[] = [];
+    if (timeline.length === 0) {
+      setTimelineRange(null);
+      return;
+    }
 
-        for (const article of leanRows) {
-          if (!article || typeof article._id !== "string") {
-            continue;
-          }
+    setTimelineRange((currentRange) => {
+      if (currentRange !== null) {
+        return currentRange;
+      }
 
-          byId[article._id] = article;
-
-          const time = parseArticleTime(article);
-          if (time !== null) {
-            sortedTimeline.push({ id: article._id, time });
-          }
-        }
-
-        sortedTimeline.sort((a, b) => a.time - b.time);
-
-        setBaseGeoJson(geoJson);
-        setArticlesById(byId);
-        setTimeline(sortedTimeline);
-        setTimelineLoadError(null);
-        setTimelineRange(
-          sortedTimeline.length > 0
-            ? [sortedTimeline[0].time, sortedTimeline.at(-1)?.time ?? 0]
-            : null
-        );
-      })
-      .catch((error) => {
-        console.error("Failed to initialize timeline data:", error);
-        setBaseGeoJson(EMPTY_GEOJSON);
-        setArticlesById({});
-        setTimeline([]);
-        setTimelineRange(null);
-        setTimelineLoadError("Casovnice ni bilo mogoce naloziti.");
-      });
-  }, [dataset.articlePath, dataset.geoJsonPath]);
+      return [timeline[0].time, timeline.at(-1)?.time ?? 0];
+    });
+  }, [timeline]);
 
   const articleTimeById = useMemo(() => {
     const byId = new Map<string, number>();

@@ -6,6 +6,7 @@ import { Loader2, Locate, Maximize, Minus, Plus, X } from "lucide-react";
 import {
   createContext,
   type ReactNode,
+  type RefObject,
   useCallback,
   useContext,
   useEffect,
@@ -175,7 +176,7 @@ function getViewport(map: MapLibreGL.Map): MapViewport {
   };
 }
 
-const Map = function Map({
+const MapComponent = function MapComponent({
   children,
   className,
   theme: themeProp,
@@ -480,7 +481,6 @@ function MapMarker({
 
     return markerInstance;
 
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -494,7 +494,6 @@ function MapMarker({
       marker.remove();
     };
 
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [map, marker.addTo, marker.remove]);
 
   if (
@@ -600,7 +599,6 @@ function MarkerPopup({
       .setDOMContent(container);
 
     return popupInstance;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: trust
@@ -615,7 +613,6 @@ function MarkerPopup({
     return () => {
       marker.setPopup(null);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [map]);
 
   if (popup.isOpen()) {
@@ -673,7 +670,7 @@ function MarkerTooltip({
     }).setMaxWidth("none");
 
     return tooltipInstance;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // biome-ignore lint/correctness/useExhaustiveDependencies: trust
   }, [popupOptions]);
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: trust
@@ -697,7 +694,6 @@ function MarkerTooltip({
       marker.getElement()?.removeEventListener("mouseleave", handleMouseLeave);
       tooltip.remove();
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [map]);
 
   if (tooltip.isOpen()) {
@@ -967,6 +963,7 @@ function CompassButton({ onClick }: { onClick: () => void }) {
         style={{ transformStyle: "preserve-3d" }}
         viewBox="0 0 24 24"
       >
+        <title>Compass</title>
         <path className="fill-red-500" d="M12 2L16 12H12V2Z" />
         <path className="fill-red-300" d="M12 2L8 12H12V2Z" />
         <path className="fill-muted-foreground/60" d="M12 22L16 12H12V22Z" />
@@ -1017,7 +1014,6 @@ function MapPopup({
       .setLngLat([longitude, latitude]);
 
     return popupInstance;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: trust
@@ -1039,7 +1035,6 @@ function MapPopup({
         popup.remove();
       }
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [map]);
 
   if (popup.isOpen()) {
@@ -1162,7 +1157,6 @@ function MapRoute({
         // ignore
       }
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isLoaded, map]);
 
   // When coordinates change, update the source data
@@ -1337,11 +1331,11 @@ function mergeArcPaint(
       baseValue === undefined
         ? hoverValue
         : [
-            "case",
-            ["boolean", ["feature-state", "hover"], false],
-            hoverValue,
-            baseValue,
-          ];
+          "case",
+          ["boolean", ["feature-state", "hover"], false],
+          hoverValue,
+          baseValue,
+        ];
   }
   return merged as MapArcLinePaint;
 }
@@ -1492,7 +1486,6 @@ function MapArc<T extends MapArcDatum = MapArcDatum>({
         // ignore
       }
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isLoaded, map]);
 
   // Sync features when data / curvature / samples change.
@@ -1559,8 +1552,8 @@ function MapArc<T extends MapArcDatum = MapArcDatum>({
       featureId == null
         ? undefined
         : latestRef.current.data.find(
-            (arc) => String(arc.id) === String(featureId)
-          );
+          (arc) => String(arc.id) === String(featureId)
+        );
 
     const handleMouseMove = (e: MapLibreGL.MapLayerMouseEvent) => {
       const featureId = e.features?.[0]?.id as string | number | undefined;
@@ -1765,7 +1758,6 @@ function MapClusterLayer<
         // ignore
       }
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isLoaded, map, sourceId]);
 
   // Update source data when data prop changes (only for non-URL data)
@@ -1941,9 +1933,9 @@ function MapClusterLayer<
 
 export type { MapArcDatum, MapArcEvent, MapRef, MapViewport };
 export {
-  Map,
   MapArc,
   MapClusterLayer,
+  MapComponent as Map,
   MapControls,
   MapMarker,
   MapPopup,

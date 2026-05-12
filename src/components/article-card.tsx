@@ -1,22 +1,14 @@
 "use client";
 
 import { X } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
+import { useMmcArticles } from "@/lib/mmc-data";
 import { getTopicStyle } from "@/lib/topic-colors";
-
-interface LeanArticle {
-  _id: string;
-  date?: string;
-  lead?: string;
-  "llm-topic"?: string;
-  title?: string;
-  url?: string;
-}
 
 export default function ArticleCard({
   id,
@@ -27,43 +19,25 @@ export default function ArticleCard({
   articlePath?: string;
   onClose?: () => void;
 }) {
-  const [articlesById, setArticlesById] = useState<Record<string, LeanArticle>>(
-    {}
-  );
-  const [article, setArticle] = useState<LeanArticle | null>(null);
-
-  useEffect(() => {
-    fetch(articlePath)
-      .then((r) => r.json())
-      .then((rows: LeanArticle[]) => {
-        const byId: Record<string, LeanArticle> = {};
-        for (const row of rows) {
-          if (row && typeof row._id === "string") {
-            byId[row._id] = row;
-          }
-        }
-        setArticlesById(byId);
-      })
-      .catch((err) => {
-        // eslint-disable-next-line no-console
-        console.error(`Failed to fetch ${articlePath}:`, err);
-        setArticlesById({});
-      });
-  }, [articlePath]);
-
-  useEffect(() => {
+  const { data } = useMmcArticles(articlePath);
+  const article = useMemo(() => {
     if (!id) {
-      setArticle(null);
+      return null;
+    }
+
+    return data?.byId[id] ?? null;
+  }, [data, id]);
+
+  useEffect(() => {
+    if (!(id && data)) {
       return;
     }
 
-    const found = articlesById[id] ?? null;
-    if (!found) {
+    if (!data.byId[id]) {
       // eslint-disable-next-line no-console
       console.debug("Article not found in mmc-lean.json for id:", id);
     }
-    setArticle(found);
-  }, [id, articlesById]);
+  }, [data, id]);
 
   if (!id) {
     return null;
