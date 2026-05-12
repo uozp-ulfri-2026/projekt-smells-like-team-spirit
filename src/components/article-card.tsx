@@ -8,7 +8,11 @@ import {
   CardTitle,
 } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
-import { getTopicStyle, hexToRgba } from "@/lib/topic-colors"
+import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import { ScrollArea } from "@/components/ui/scroll-area"
+import { X } from "lucide-react"
+import { getTopicStyle } from "@/lib/topic-colors"
 
 type LeanArticle = {
   _id: string
@@ -61,15 +65,7 @@ export default function ArticleCard({ id, onClose }: { id: string | null; onClos
   const topicStyle = getTopicStyle(article?.["llm-topic"])
 
   return (
-    <Card
-      className="absolute top-4 right-4 z-20 h-[90vh] w-96 border overflow-hidden shadow-lg"
-      style={{
-        borderColor: article ? hexToRgba(topicStyle.color, 0.55) : undefined,
-        boxShadow: article
-          ? `0 18px 48px rgba(0, 0, 0, 0.32), 0 0 0 1px ${hexToRgba(topicStyle.color, 0.16)}`
-          : undefined,
-      }}
-    >
+    <Card className="absolute top-4 right-4 z-20 h-[90vh] w-96 border shadow-lg">
       {article && (
         <div
           aria-hidden="true"
@@ -77,29 +73,26 @@ export default function ArticleCard({ id, onClose }: { id: string | null; onClos
           style={{ backgroundColor: topicStyle.color }}
         />
       )}
-      <button
+      <Button
+        variant="ghost"
+        size="icon"
         onClick={onClose}
-        className="absolute top-2 left-2 z-30 p-1 rounded text-muted-foreground hover:text-foreground hover:bg-accent transition"
+        className="absolute top-2 left-2 z-30"
         aria-label="Close article"
       >
-        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-        </svg>
-      </button>
+        <X className="h-4 w-4" />
+      </Button>
 
-      <div className="flex-1 overflow-y-auto">
+      <ScrollArea className="flex-1">
         {!article && <CardContent className="pt-4 text-sm text-muted-foreground">Loading article...</CardContent>}
         {article && (
           <>
             <CardHeader className="pt-8">
               <CardTitle className="text-base leading-tight">{article.title?.trim() || "Untitled"}</CardTitle>
               {article["llm-topic"] && (
-                <p
-                  className="text-xs font-semibold uppercase tracking-wide"
-                  style={{ color: topicStyle.textColor }}
-                >
+                <Badge variant="secondary" className="uppercase tracking-wide" style={{ color: topicStyle.textColor }}>
                   {article["llm-topic"]}
-                </p>
+                </Badge>
               )}
               {article.date && (
                 <p className="text-xs text-muted-foreground">{new Date(article.date).toLocaleDateString()}</p>
@@ -125,7 +118,7 @@ export default function ArticleCard({ id, onClose }: { id: string | null; onClos
             </CardContent>
           </>
         )}
-      </div>
+      </ScrollArea>
     </Card>
   )
 }

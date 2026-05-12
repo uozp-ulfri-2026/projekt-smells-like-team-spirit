@@ -22,7 +22,7 @@ export function TimelineSlider({
   onValueChange,
 }: TimelineSliderProps) {
   return (
-    <div className="fixed right-8 bottom-8 left-8 z-[1000] border bg-background/95 px-4 py-3 shadow-md backdrop-blur">
+    <div className="fixed right-8 bottom-8 left-8 z-1000 border bg-background/95 px-4 py-3 shadow-md backdrop-blur">
       <div className="mb-2 flex items-center justify-between gap-3 text-xs text-muted-foreground">
         <span className="font-medium text-foreground">{startLabel}</span>
         <span>{articleCount.toLocaleString("sl-SI")} novic</span>
