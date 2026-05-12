@@ -2,6 +2,7 @@ import {
   type DOMMotionComponents,
   type MotionProps,
   motion,
+  useReducedMotion,
 } from "motion/react";
 import type { CSSProperties, HTMLAttributes } from "react";
 
@@ -43,8 +44,16 @@ export function LineShadowText({
   ...props
 }: LineShadowTextProps) {
   const MotionComponent = motionElements[Component];
+  const shouldReduceMotion = useReducedMotion();
 
-  return (
+  return shouldReduceMotion ? (
+    <MotionComponent
+      className={cn("relative z-0 inline-flex", className)}
+      {...props}
+    >
+      {children}
+    </MotionComponent>
+  ) : (
     <MotionComponent
       className={cn(
         "relative z-0 inline-flex",

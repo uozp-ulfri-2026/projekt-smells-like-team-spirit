@@ -123,7 +123,7 @@ export default function App() {
   );
 }
 
-export function MyMap() {
+function MyMap() {
   const [selectedCountry, setSelectedCountry] = useState<CountryData | null>(
     null
   );

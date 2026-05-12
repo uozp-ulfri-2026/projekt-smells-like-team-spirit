@@ -5,6 +5,7 @@ import "maplibre-gl/dist/maplibre-gl.css";
 import { Loader2, Locate, Maximize, Minus, Plus, X } from "lucide-react";
 import {
   createContext,
+  forwardRef,
   type ReactNode,
   useCallback,
   useContext,
@@ -91,10 +92,10 @@ function useResolvedTheme(themeProp?: "light" | "dark"): Theme {
   return themeProp ?? detectedTheme;
 }
 
-interface MapContextValue {
-  isLoaded: boolean;
+type MapContextValue = {
   map: MapLibreGL.Map | null;
-}
+  isLoaded: boolean;
+};
 
 const MapContext = createContext<MapContextValue | null>(null);
 
@@ -107,16 +108,16 @@ function useMap() {
 }
 
 /** Map viewport state */
-interface MapViewport {
-  /** Bearing (rotation) in degrees */
-  bearing: number;
+type MapViewport = {
   /** Center coordinates [longitude, latitude] */
   center: [number, number];
-  /** Pitch (tilt) in degrees */
-  pitch: number;
   /** Zoom level */
   zoom: number;
-}
+  /** Bearing (rotation) in degrees */
+  bearing: number;
+  /** Pitch (tilt) in degrees */
+  pitch: number;
+};
 
 type MapStyleOption = string | MapLibreGL.StyleSpecification;
 
@@ -175,18 +176,20 @@ function getViewport(map: MapLibreGL.Map): MapViewport {
   };
 }
 
-const Map = function Map({
-  children,
-  className,
-  theme: themeProp,
-  styles,
-  projection,
-  viewport,
-  onViewportChange,
-  loading = false,
-  ref,
-  ...props
-}: MapProps & { ref?: RefObject<MapRef | null> }) {
+const Map = forwardRef<MapRef, MapProps>(function Map(
+  {
+    children,
+    className,
+    theme: themeProp,
+    styles,
+    projection,
+    viewport,
+    onViewportChange,
+    loading = false,
+    ...props
+  },
+  ref
+) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [mapInstance, setMapInstance] = useState<MapLibreGL.Map | null>(null);
   const [mapError, setMapError] = useState<string | null>(null);
@@ -221,6 +224,7 @@ const Map = function Map({
   }, []);
 
   // Initialize the map
+  // biome-ignore lint/correctness/useExhaustiveDependencies: trust
   useEffect(() => {
     if (!containerRef.current) {
       return;
@@ -286,16 +290,7 @@ const Map = function Map({
       setIsStyleLoaded(false);
       setMapInstance(null);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [
-    viewport,
-    props,
-    projection,
-    resolvedTheme,
-    mapStyles.light,
-    mapStyles.dark,
-    clearStyleTimeout,
-  ]);
+  }, []);
 
   // Sync controlled viewport to map
   useEffect(() => {
@@ -377,12 +372,12 @@ const Map = function Map({
       </div>
     </MapContext.Provider>
   );
-};
+});
 
-interface MarkerContextValue {
-  map: MapLibreGL.Map | null;
+type MarkerContextValue = {
   marker: MapLibreGL.Marker;
-}
+  map: MapLibreGL.Map | null;
+};
 
 const MarkerContext = createContext<MarkerContextValue | null>(null);
 
@@ -447,6 +442,7 @@ function MapMarker({
     onDragEnd,
   };
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: trust
   const marker = useMemo(() => {
     const markerInstance = new MapLibreGL.Marker({
       ...markerOptions,
@@ -488,7 +484,7 @@ function MapMarker({
     return markerInstance;
 
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [draggable, longitude, latitude, markerOptions]);
+  }, []);
 
   useEffect(() => {
     if (!map) {
@@ -502,7 +498,7 @@ function MapMarker({
     };
 
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [map, marker.remove, marker.addTo]);
+  }, [map]);
 
   if (
     marker.getLngLat().lng !== longitude ||
@@ -540,12 +536,12 @@ function MapMarker({
   );
 }
 
-interface MarkerContentProps {
+type MarkerContentProps = {
   /** Custom marker content. Defaults to a blue dot if not provided */
   children?: ReactNode;
   /** Additional CSS classes for the marker container */
   className?: string;
-}
+};
 
 function MarkerContent({ children, className }: MarkerContentProps) {
   const { marker } = useMarkerContext();
@@ -596,6 +592,7 @@ function MarkerPopup({
   const container = useMemo(() => document.createElement("div"), []);
   const prevPopupOptions = useRef(popupOptions);
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: trust
   const popup = useMemo(() => {
     const popupInstance = new MapLibreGL.Popup({
       offset: 16,
@@ -607,8 +604,9 @@ function MarkerPopup({
 
     return popupInstance;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [container, popupOptions]);
+  }, []);
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: trust
   useEffect(() => {
     if (!map) {
       return;
@@ -621,7 +619,7 @@ function MarkerPopup({
       marker.setPopup(null);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [map, popup.setDOMContent, popup, container, marker.setPopup]);
+  }, [map]);
 
   if (popup.isOpen()) {
     const prev = prevPopupOptions.current;
@@ -679,8 +677,9 @@ function MarkerTooltip({
 
     return tooltipInstance;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [popupOptions]);
+  }, []);
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: trust
   useEffect(() => {
     if (!map) {
       return;
@@ -702,15 +701,7 @@ function MarkerTooltip({
       tooltip.remove();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [
-    map,
-    container,
-    tooltip.remove,
-    tooltip.setDOMContent,
-    marker.getLngLat,
-    marker.getElement,
-    tooltip.setLngLat,
-  ]);
+  }, [map]);
 
   if (tooltip.isOpen()) {
     const prev = prevTooltipOptions.current;
@@ -739,14 +730,14 @@ function MarkerTooltip({
   );
 }
 
-interface MarkerLabelProps {
+type MarkerLabelProps = {
   /** Label text content */
   children: ReactNode;
   /** Additional CSS classes for the label */
   className?: string;
   /** Position of the label relative to the marker (default: "top") */
   position?: "top" | "bottom";
-}
+};
 
 function MarkerLabel({
   children,
@@ -772,22 +763,22 @@ function MarkerLabel({
   );
 }
 
-interface MapControlsProps {
+type MapControlsProps = {
+  /** Position of the controls on the map (default: "bottom-right") */
+  position?: "top-left" | "top-right" | "bottom-left" | "bottom-right";
+  /** Show zoom in/out buttons (default: true) */
+  showZoom?: boolean;
+  /** Show compass button to reset bearing (default: false) */
+  showCompass?: boolean;
+  /** Show locate button to find user's location (default: false) */
+  showLocate?: boolean;
+  /** Show fullscreen toggle button (default: false) */
+  showFullscreen?: boolean;
   /** Additional CSS classes for the controls container */
   className?: string;
   /** Callback with user coordinates when located */
   onLocate?: (coords: { longitude: number; latitude: number }) => void;
-  /** Position of the controls on the map (default: "bottom-right") */
-  position?: "top-left" | "top-right" | "bottom-left" | "bottom-right";
-  /** Show compass button to reset bearing (default: false) */
-  showCompass?: boolean;
-  /** Show fullscreen toggle button (default: false) */
-  showFullscreen?: boolean;
-  /** Show locate button to find user's location (default: false) */
-  showLocate?: boolean;
-  /** Show zoom in/out buttons (default: true) */
-  showZoom?: boolean;
-}
+};
 
 const positionClasses = {
   "top-left": "top-2 left-2",
@@ -1018,6 +1009,7 @@ function MapPopup({
   onCloseRef.current = onClose;
   const container = useMemo(() => document.createElement("div"), []);
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: trust
   const popup = useMemo(() => {
     const popupInstance = new MapLibreGL.Popup({
       offset: 16,
@@ -1029,8 +1021,9 @@ function MapPopup({
 
     return popupInstance;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [latitude, popupOptions, longitude]);
+  }, []);
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: trust
   useEffect(() => {
     if (!map) {
       return;
@@ -1050,16 +1043,7 @@ function MapPopup({
       }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [
-    map,
-    popup.remove,
-    popup.setDOMContent,
-    container,
-    popup.addTo,
-    popup.on,
-    popup.isOpen,
-    popup.off,
-  ]);
+  }, [map]);
 
   if (popup.isOpen()) {
     const prev = popupOptionsRef.current;
@@ -1099,28 +1083,28 @@ function MapPopup({
   );
 }
 
-interface MapRouteProps {
-  /** Line color as CSS color value (default: "#4285F4") */
-  color?: string;
-  /** Array of [longitude, latitude] coordinate pairs defining the route */
-  coordinates: [number, number][];
-  /** Dash pattern [dash length, gap length] for dashed lines */
-  dashArray?: [number, number];
+type MapRouteProps = {
   /** Optional unique identifier for the route layer */
   id?: string;
-  /** Whether the route is interactive - shows pointer cursor on hover (default: true) */
-  interactive?: boolean;
+  /** Array of [longitude, latitude] coordinate pairs defining the route */
+  coordinates: [number, number][];
+  /** Line color as CSS color value (default: "#4285F4") */
+  color?: string;
+  /** Line width in pixels (default: 3) */
+  width?: number;
+  /** Line opacity from 0 to 1 (default: 0.8) */
+  opacity?: number;
+  /** Dash pattern [dash length, gap length] for dashed lines */
+  dashArray?: [number, number];
   /** Callback when the route line is clicked */
   onClick?: () => void;
   /** Callback when mouse enters the route line */
   onMouseEnter?: () => void;
   /** Callback when mouse leaves the route line */
   onMouseLeave?: () => void;
-  /** Line opacity from 0 to 1 (default: 0.8) */
-  opacity?: number;
-  /** Line width in pixels (default: 3) */
-  width?: number;
-}
+  /** Whether the route is interactive - shows pointer cursor on hover (default: true) */
+  interactive?: boolean;
+};
 
 function MapRoute({
   id: propId,
@@ -1141,6 +1125,7 @@ function MapRoute({
   const layerId = `route-layer-${id}`;
 
   // Add source and layer on mount
+  // biome-ignore lint/correctness/useExhaustiveDependencies: trust
   useEffect(() => {
     if (!(isLoaded && map)) {
       return;
@@ -1181,7 +1166,7 @@ function MapRoute({
       }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isLoaded, map, color, opacity, dashArray, width, layerId, sourceId]);
+  }, [isLoaded, map]);
 
   // When coordinates change, update the source data
   useEffect(() => {
@@ -1200,7 +1185,7 @@ function MapRoute({
   }, [isLoaded, map, coordinates, sourceId]);
 
   useEffect(() => {
-    if (!(isLoaded && map?.getLayer(layerId))) {
+    if (!(isLoaded && map && map.getLayer(layerId))) {
       return;
     }
 
@@ -1253,35 +1238,37 @@ function MapRoute({
 }
 
 /** A single arc to render inside <MapArc data={...}>. */
-interface MapArcDatum {
-  /** Start coordinate as [longitude, latitude]. */
-  from: [number, number];
+type MapArcDatum = {
   /** Unique identifier for this arc. Required for hover state tracking and event payloads. */
   id: string | number;
+  /** Start coordinate as [longitude, latitude]. */
+  from: [number, number];
   /** End coordinate as [longitude, latitude]. */
   to: [number, number];
-}
+};
 
 /** Event payload passed to MapArc interaction callbacks. */
-interface MapArcEvent<T extends MapArcDatum = MapArcDatum> {
+type MapArcEvent<T extends MapArcDatum = MapArcDatum> = {
   /** The arc datum that was hovered or clicked. */
   arc: T;
-  /** Latitude of the cursor at the time of the event. */
-  latitude: number;
   /** Longitude of the cursor at the time of the event. */
   longitude: number;
+  /** Latitude of the cursor at the time of the event. */
+  latitude: number;
   /** The underlying MapLibre mouse event for advanced use cases. */
   originalEvent: MapLibreGL.MapMouseEvent;
-}
+};
 
 type MapArcLinePaint = NonNullable<MapLibreGL.LineLayerSpecification["paint"]>;
 type MapArcLineLayout = NonNullable<
   MapLibreGL.LineLayerSpecification["layout"]
 >;
 
-interface MapArcProps<T extends MapArcDatum = MapArcDatum> {
-  /** Optional MapLibre layer id to insert the arc layers before (z-order control). */
-  beforeId?: string;
+type MapArcProps<T extends MapArcDatum = MapArcDatum> = {
+  /** Array of arcs to render. Each arc must have a unique `id`. */
+  data: T[];
+  /** Optional unique identifier prefix for the arc source/layers. Auto-generated if not provided. */
+  id?: string;
   /**
    * How far each arc bows away from a straight line. `0` renders straight
    * lines; higher values bend further. Negative values bend to the opposite
@@ -1289,20 +1276,23 @@ interface MapArcProps<T extends MapArcDatum = MapArcDatum> {
    * account for the antimeridian. (default: 0.2)
    */
   curvature?: number;
-  /** Array of arcs to render. Each arc must have a unique `id`. */
-  data: T[];
+  /** Number of samples used to render each curve. Higher = smoother. (default: 64) */
+  samples?: number;
+  /**
+   * MapLibre paint properties for the arc layer. Merged on top of sensible
+   * defaults (`line-color: #4285F4`, `line-width: 2`, `line-opacity: 0.85`).
+   * Any value can be a MapLibre expression for per-feature styling, every
+   * field on each arc datum (besides `from`/`to`) is exposed via `["get", ...]`.
+   */
+  paint?: MapArcLinePaint;
+  /** MapLibre layout properties for the arc layer. Defaults to rounded joins/caps. */
+  layout?: MapArcLineLayout;
   /**
    * Paint properties applied to the arc currently under the cursor. Each key
    * is merged into `paint` as a `case` expression keyed on per-feature hover
    * state, so only the hovered arc changes appearance.
    */
   hoverPaint?: MapArcLinePaint;
-  /** Optional unique identifier prefix for the arc source/layers. Auto-generated if not provided. */
-  id?: string;
-  /** Whether arcs respond to mouse events (default: true). */
-  interactive?: boolean;
-  /** MapLibre layout properties for the arc layer. Defaults to rounded joins/caps. */
-  layout?: MapArcLineLayout;
   /** Callback when an arc is clicked. */
   onClick?: (e: MapArcEvent<T>) => void;
   /**
@@ -1311,16 +1301,11 @@ interface MapArcProps<T extends MapArcDatum = MapArcDatum> {
    * last hovered arc.
    */
   onHover?: (e: MapArcEvent<T> | null) => void;
-  /**
-   * MapLibre paint properties for the arc layer. Merged on top of sensible
-   * defaults (`line-color: #4285F4`, `line-width: 2`, `line-opacity: 0.85`).
-   * Any value can be a MapLibre expression for per-feature styling, every
-   * field on each arc datum (besides `from`/`to`) is exposed via `["get", ...]`.
-   */
-  paint?: MapArcLinePaint;
-  /** Number of samples used to render each curve. Higher = smoother. (default: 64) */
-  samples?: number;
-}
+  /** Whether arcs respond to mouse events (default: true). */
+  interactive?: boolean;
+  /** Optional MapLibre layer id to insert the arc layers before (z-order control). */
+  beforeId?: string;
+};
 
 const DEFAULT_ARC_CURVATURE = 0.2;
 const DEFAULT_ARC_SAMPLES = 64;
@@ -1355,11 +1340,11 @@ function mergeArcPaint(
       baseValue === undefined
         ? hoverValue
         : [
-            "case",
-            ["boolean", ["feature-state", "hover"], false],
-            hoverValue,
-            baseValue,
-          ];
+          "case",
+          ["boolean", ["feature-state", "hover"], false],
+          hoverValue,
+          baseValue,
+        ];
   }
   return merged as MapArcLinePaint;
 }
@@ -1457,6 +1442,7 @@ function MapArc<T extends MapArcDatum = MapArcDatum>({
   latestRef.current = { data, onClick, onHover };
 
   // Add source and layers on mount.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: trust
   useEffect(() => {
     if (!(isLoaded && map)) {
       return;
@@ -1510,18 +1496,7 @@ function MapArc<T extends MapArcDatum = MapArcDatum>({
       }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [
-    isLoaded,
-    map,
-    beforeId,
-    geoJSON,
-    hitLayerId,
-    hitWidth,
-    layerId,
-    sourceId,
-    mergedPaint,
-    mergedLayout,
-  ]);
+  }, [isLoaded, map]);
 
   // Sync features when data / curvature / samples change.
   useEffect(() => {
@@ -1536,7 +1511,7 @@ function MapArc<T extends MapArcDatum = MapArcDatum>({
 
   // Sync paint/layout when they change.
   useEffect(() => {
-    if (!(isLoaded && map?.getLayer(layerId))) {
+    if (!(isLoaded && map && map.getLayer(layerId))) {
       return;
     }
     for (const [key, value] of Object.entries(mergedPaint)) {
@@ -1587,8 +1562,8 @@ function MapArc<T extends MapArcDatum = MapArcDatum>({
       featureId == null
         ? undefined
         : latestRef.current.data.find(
-            (arc) => String(arc.id) === String(featureId)
-          );
+          (arc) => String(arc.id) === String(featureId)
+        );
 
     const handleMouseMove = (e: MapLibreGL.MapLayerMouseEvent) => {
       const featureId = e.features?.[0]?.id as string | number | undefined;
@@ -1645,33 +1620,33 @@ function MapArc<T extends MapArcDatum = MapArcDatum>({
   return null;
 }
 
-interface MapClusterLayerProps<
+type MapClusterLayerProps<
   P extends GeoJSON.GeoJsonProperties = GeoJSON.GeoJsonProperties,
-> {
-  /** Colors for cluster circles: [small, medium, large] based on point count (default: ["#22c55e", "#eab308", "#ef4444"]) */
-  clusterColors?: [string, string, string];
+> = {
+  /** GeoJSON FeatureCollection data or URL to fetch GeoJSON from */
+  data: string | GeoJSON.FeatureCollection<GeoJSON.Point, P>;
   /** Maximum zoom level to cluster points on (default: 14) */
   clusterMaxZoom?: number;
   /** Radius of each cluster when clustering points in pixels (default: 50) */
   clusterRadius?: number;
+  /** Colors for cluster circles: [small, medium, large] based on point count (default: ["#22c55e", "#eab308", "#ef4444"]) */
+  clusterColors?: [string, string, string];
   /** Point count thresholds for color/size steps: [medium, large] (default: [100, 750]) */
   clusterThresholds?: [number, number];
-  /** GeoJSON FeatureCollection data or URL to fetch GeoJSON from */
-  data: string | GeoJSON.FeatureCollection<GeoJSON.Point, P>;
+  /** Color for unclustered individual points (default: "#3b82f6") */
+  pointColor?: string;
+  /** Callback when an unclustered point is clicked */
+  onPointClick?: (
+    feature: GeoJSON.Feature<GeoJSON.Point, P>,
+    coordinates: [number, number]
+  ) => void;
   /** Callback when a cluster is clicked. If not provided, zooms into the cluster */
   onClusterClick?: (
     clusterId: number,
     coordinates: [number, number],
     pointCount: number
   ) => void;
-  /** Callback when an unclustered point is clicked */
-  onPointClick?: (
-    feature: GeoJSON.Feature<GeoJSON.Point, P>,
-    coordinates: [number, number]
-  ) => void;
-  /** Color for unclustered individual points (default: "#3b82f6") */
-  pointColor?: string;
-}
+};
 
 function MapClusterLayer<
   P extends GeoJSON.GeoJsonProperties = GeoJSON.GeoJsonProperties,
@@ -1699,6 +1674,7 @@ function MapClusterLayer<
   });
 
   // Add source and layers on mount
+  // biome-ignore lint/correctness/useExhaustiveDependencies: trust
   useEffect(() => {
     if (!(isLoaded && map)) {
       return;
@@ -1793,20 +1769,7 @@ function MapClusterLayer<
       }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [
-    isLoaded,
-    map,
-    sourceId,
-    clusterColors[2],
-    unclusteredLayerId,
-    pointColor,
-    clusterLayerId,
-    data,
-    clusterRadius,
-    clusterThresholds[1],
-    clusterMaxZoom,
-    clusterCountLayerId,
-  ]);
+  }, [isLoaded, map, sourceId]);
 
   // Update source data when data prop changes (only for non-URL data)
   useEffect(() => {
