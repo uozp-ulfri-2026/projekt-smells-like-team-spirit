@@ -37,19 +37,19 @@ interface CityFeature {
 
 interface LeanArticle {
   _id: string;
-  url?: string;
   date?: string;
+  lead?: string;
   "llm-topic"?: string;
   title?: string;
-  lead?: string;
+  url?: string;
 }
 
 interface SearchRow {
+  city: string;
+  country: string;
   id: string;
   title: string;
   topic: string;
-  city: string;
-  country: string;
 }
 
 const PAGE_SIZE = 10;
@@ -82,22 +82,24 @@ export default function Explorator({
   const [searchQuery, setSearchQuery] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
 
-  const geoData = useMemo<CityFeature[]>(() => {
-    return (geoJson.features || [])
-      .filter(
-        (feature) =>
-          feature.properties?.ids &&
-          feature.properties?.city &&
-          feature.properties?.country,
-      )
-      .map((feature) => ({
-        city: feature.properties?.city ?? "",
-        country: feature.properties?.country ?? "",
-        ids: Array.isArray(feature.properties?.ids)
-          ? feature.properties.ids
-          : [],
-      }));
-  }, [geoJson]);
+  const geoData = useMemo<CityFeature[]>(
+    () =>
+      (geoJson.features || [])
+        .filter(
+          (feature) =>
+            feature.properties?.ids &&
+            feature.properties?.city &&
+            feature.properties?.country
+        )
+        .map((feature) => ({
+          city: feature.properties?.city ?? "",
+          country: feature.properties?.country ?? "",
+          ids: Array.isArray(feature.properties?.ids)
+            ? feature.properties.ids
+            : [],
+        })),
+    [geoJson]
+  );
 
   const rows = useMemo(() => {
     const dedup = new Set<string>();
@@ -112,11 +114,15 @@ export default function Explorator({
       }
 
       for (const id of feature.ids) {
-        if (dedup.has(id)) continue;
+        if (dedup.has(id)) {
+          continue;
+        }
         dedup.add(id);
 
         const article = articlesById[id];
-        if (!article) continue;
+        if (!article) {
+          continue;
+        }
 
         out.push({
           id,
@@ -131,23 +137,28 @@ export default function Explorator({
     return out;
   }, [geoData, articlesById, country]);
 
-  const rowsById = useMemo(() => {
-    return new Map(rows.map((row) => [row.id, row]));
-  }, [rows]);
+  const rowsById = useMemo(
+    () => new Map(rows.map((row) => [row.id, row])),
+    [rows]
+  );
 
   const selectedDotRows = useMemo(() => {
-    if (selectedDotArticleIds.length === 0) return [];
+    if (selectedDotArticleIds.length === 0) {
+      return [];
+    }
 
     return selectedDotArticleIds
       .map((id) => rowsById.get(id))
       .filter((row): row is SearchRow => Boolean(row));
   }, [rowsById, selectedDotArticleIds]);
 
-  const topics = useMemo(() => {
-    return Array.from(new Set(rows.map((r) => r.topic))).sort((a, b) =>
-      a.localeCompare(b, "sl"),
-    );
-  }, [rows]);
+  const topics = useMemo(
+    () =>
+      Array.from(new Set(rows.map((r) => r.topic))).sort((a, b) =>
+        a.localeCompare(b, "sl")
+      ),
+    [rows]
+  );
 
   const topicOptions = useMemo(() => {
     const options = new Set(topics);
@@ -177,7 +188,7 @@ export default function Explorator({
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchQuery, selectedTopic, country]);
+  }, []);
 
   useEffect(() => {
     if (selectedDotArticleIds.length > 0) {
@@ -201,7 +212,9 @@ export default function Explorator({
     if (totalPages <= 5) {
       return Array.from({ length: totalPages }, (_, i) => i + 1);
     }
-    if (currentPage <= 3) return [1, 2, 3, 4, totalPages];
+    if (currentPage <= 3) {
+      return [1, 2, 3, 4, totalPages];
+    }
     if (currentPage >= totalPages - 2) {
       return [1, totalPages - 3, totalPages - 2, totalPages - 1, totalPages];
     }
@@ -213,16 +226,18 @@ export default function Explorator({
       <Sidebar>
         <SidebarHeader className="border-b">
           <div className="flex items-center justify-between gap-2">
-            <h2 className="text-xs font-semibold uppercase tracking-widest">Cities & News</h2>
+            <h2 className="font-semibold text-xs uppercase tracking-widest">
+              Cities & News
+            </h2>
             <SidebarTrigger />
           </div>
           <Input
             className="h-7 text-xs"
+            onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Isci mesta..."
             value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
           />
-          <Select value={selectedTopic} onValueChange={onSelectedTopicChange}>
+          <Select onValueChange={onSelectedTopicChange} value={selectedTopic}>
             <SelectTrigger className="h-7 text-xs">
               <SelectValue placeholder="Izberi temo" />
             </SelectTrigger>
@@ -259,10 +274,10 @@ export default function Explorator({
                       : `${selectedDotRows.length} articles at selected dot`}
                   </span>
                   <Button
-                    variant="link"
-                    size="sm"
-                    onClick={onClearSelectedDot}
                     className="h-auto shrink-0 p-0"
+                    onClick={onClearSelectedDot}
+                    size="sm"
+                    variant="link"
                   >
                     Clear
                   </Button>
@@ -274,7 +289,7 @@ export default function Explorator({
             )}
 
             {filteredRows.length === 0 ? (
-              <div className="py-4 text-sm text-muted-foreground">
+              <div className="py-4 text-muted-foreground text-sm">
                 Ni zadetkov za izbrane filtre.
               </div>
             ) : (
@@ -284,10 +299,9 @@ export default function Explorator({
 
                 return (
                   <button
-                    key={row.id}
-                    type="button"
-                    onClick={() => onSelectArticle(row.id)}
                     className="flex w-full items-start gap-2 border border-l-4 px-2 py-1.5 text-left text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    key={row.id}
+                    onClick={() => onSelectArticle(row.id)}
                     style={{
                       borderLeftColor: topicStyle.color,
                       borderTopColor: isSelected
@@ -301,9 +315,10 @@ export default function Explorator({
                         : "transparent",
                       backgroundColor: hexToRgba(
                         topicStyle.color,
-                        isSelected ? 0.22 : 0.08,
+                        isSelected ? 0.22 : 0.08
                       ),
                     }}
+                    type="button"
                   >
                     <span
                       aria-hidden="true"
@@ -316,7 +331,7 @@ export default function Explorator({
                       }}
                     />
                     <div className="min-w-0">
-                      <p className="truncate text-xs font-medium text-foreground">
+                      <p className="truncate font-medium text-foreground text-xs">
                         {row.title}
                       </p>
                       <p
@@ -337,16 +352,18 @@ export default function Explorator({
                   <PaginationContent>
                     <PaginationItem>
                       <PaginationPrevious
-                        href="#"
-                        onClick={(e) => {
-                          e.preventDefault();
-                          if (currentPage > 1) setCurrentPage((p) => p - 1);
-                        }}
                         className={
                           currentPage === 1
                             ? "pointer-events-none opacity-50"
                             : ""
                         }
+                        href="#"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          if (currentPage > 1) {
+                            setCurrentPage((p) => p - 1);
+                          }
+                        }}
                         text="Prej"
                       />
                     </PaginationItem>
@@ -379,17 +396,18 @@ export default function Explorator({
 
                     <PaginationItem>
                       <PaginationNext
-                        href="#"
-                        onClick={(e) => {
-                          e.preventDefault();
-                          if (currentPage < totalPages)
-                            setCurrentPage((p) => p + 1);
-                        }}
                         className={
                           currentPage === totalPages
                             ? "pointer-events-none opacity-50"
                             : ""
                         }
+                        href="#"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          if (currentPage < totalPages) {
+                            setCurrentPage((p) => p + 1);
+                          }
+                        }}
                         text="Naprej"
                       />
                     </PaginationItem>

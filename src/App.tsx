@@ -12,21 +12,21 @@ import { Map as MapComponent, MapControls } from "./components/map";
 import { Card } from "./components/ui/card";
 import { LineShadowText } from "./components/ui/line-shadow-text";
 
-type LeanArticle = {
+interface LeanArticle {
   _id: string;
   date?: string;
+  lead?: string;
   "llm-topic"?: string;
   title?: string;
-  lead?: string;
   url?: string;
-};
+}
 
-type CityProperties = {
+interface CityProperties {
   city?: string;
   country?: string;
   ids?: string[];
   [key: string]: unknown;
-};
+}
 
 type CityFeature = GeoJSON.Feature<GeoJSON.Point, CityProperties>;
 type CityFeatureCollection = GeoJSON.FeatureCollection<
@@ -34,10 +34,10 @@ type CityFeatureCollection = GeoJSON.FeatureCollection<
   CityProperties
 >;
 
-type TimelineArticle = {
+interface TimelineArticle {
   id: string;
   time: number;
-};
+}
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -53,13 +53,17 @@ const dateFormatter = new Intl.DateTimeFormat("sl-SI", {
 });
 
 function parseArticleTime(article: LeanArticle): number | null {
-  if (!article.date) return null;
+  if (!article.date) {
+    return null;
+  }
   const time = Date.parse(article.date);
   return Number.isFinite(time) ? time : null;
 }
 
 function formatTimelineDate(time: number | undefined): string {
-  if (time === undefined) return "";
+  if (time === undefined) {
+    return "";
+  }
   return dateFormatter.format(new Date(time));
 }
 
@@ -76,14 +80,14 @@ function useDebouncedValue<T>(value: T, delay: number): T {
 
 function CountryColorLegend({ selectedTopic }: { selectedTopic: string }) {
   const gradient = `linear-gradient(90deg, ${COUNTRY_ARTICLE_COLOR_STOPS.map(
-    (stop) => stop.color,
+    (stop) => stop.color
   ).join(", ")})`;
   const ticks = COUNTRY_ARTICLE_COLOR_STOPS.filter((_, index) =>
-    [0, 2, 4, 6, COUNTRY_ARTICLE_COLOR_STOPS.length - 1].includes(index),
+    [0, 2, 4, 6, COUNTRY_ARTICLE_COLOR_STOPS.length - 1].includes(index)
   );
 
   return (
-    <div className="absolute left-4 bottom-4 z-10 w-72 border bg-background/95 px-3 py-2 text-xs shadow-md backdrop-blur">
+    <div className="absolute bottom-4 left-4 z-10 w-72 border bg-background/95 px-3 py-2 text-xs shadow-md backdrop-blur">
       <div className="mb-2 flex items-center justify-between gap-2">
         <span className="font-medium text-foreground">Articles by country</span>
         {selectedTopic !== "all" && (
@@ -104,10 +108,10 @@ function CountryColorLegend({ selectedTopic }: { selectedTopic: string }) {
 
 export default function App() {
   return (
-    <main className="h-svh p-8 pb-28 flex flex-col gap-8 overflow-hidden">
+    <main className="flex h-svh flex-col gap-8 overflow-hidden p-8 pb-28">
       {/* <h1 className="text-4xl font-bold text-center shrink-0">Slovenski svet</h1> */}
-      <div className="flex items-center justify-center shrink-0 prose">
-        <h1 className="text-4xl leading-none font-semibold tracking-tighter text-balance sm:text-5xl md:text-6xl lg:text-7xl">
+      <div className="prose flex shrink-0 items-center justify-center">
+        <h1 className="text-balance font-semibold text-4xl leading-none tracking-tighter sm:text-5xl md:text-6xl lg:text-7xl">
           Slovenski
           <LineShadowText className="italic" shadowColor="white">
             Svet
@@ -121,27 +125,27 @@ export default function App() {
 
 export function MyMap() {
   const [selectedCountry, setSelectedCountry] = useState<CountryData | null>(
-    null,
+    null
   );
   const [selectedArticleId, setSelectedArticleId] = useState<string | null>(
-    null,
+    null
   );
   const [selectedDotArticleIds, setSelectedDotArticleIds] = useState<string[]>(
-    [],
+    []
   );
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [baseGeoJson, setBaseGeoJson] = useState<CityFeatureCollection | null>(
-    null,
+    null
   );
   const [articlesById, setArticlesById] = useState<Record<string, LeanArticle>>(
-    {},
+    {}
   );
   const [timeline, setTimeline] = useState<TimelineArticle[]>([]);
   const [timelineRange, setTimelineRange] = useState<[number, number] | null>(
-    null,
+    null
   );
   const [timelineLoadError, setTimelineLoadError] = useState<string | null>(
-    null,
+    null
   );
   const [selectedTopic, setSelectedTopic] = useState("all");
   const debouncedTimelineRange = useDebouncedValue(timelineRange, 250);
@@ -151,7 +155,7 @@ export function MyMap() {
       fetch("/output.geojson").then((response) => {
         if (!response.ok) {
           throw new Error(
-            `HTTP ${response.status}: Failed to fetch /output.geojson`,
+            `HTTP ${response.status}: Failed to fetch /output.geojson`
           );
         }
         return response.json() as Promise<CityFeatureCollection>;
@@ -159,7 +163,7 @@ export function MyMap() {
       fetch("/mmc-lean.json").then((response) => {
         if (!response.ok) {
           throw new Error(
-            `HTTP ${response.status}: Failed to fetch /mmc-lean.json`,
+            `HTTP ${response.status}: Failed to fetch /mmc-lean.json`
           );
         }
         return response.json() as Promise<LeanArticle[]>;
@@ -170,7 +174,9 @@ export function MyMap() {
         const sortedTimeline: TimelineArticle[] = [];
 
         for (const article of leanRows) {
-          if (!article || typeof article._id !== "string") continue;
+          if (!article || typeof article._id !== "string") {
+            continue;
+          }
 
           byId[article._id] = article;
 
@@ -188,11 +194,8 @@ export function MyMap() {
         setTimelineLoadError(null);
         setTimelineRange(
           sortedTimeline.length > 0
-            ? [
-              sortedTimeline[0].time,
-              sortedTimeline[sortedTimeline.length - 1].time,
-            ]
-            : null,
+            ? [sortedTimeline[0].time, sortedTimeline.at(-1).time]
+            : null
         );
       })
       .catch((error) => {
@@ -216,25 +219,29 @@ export function MyMap() {
   }, [timeline]);
 
   const timelineBounds = useMemo(() => {
-    if (timeline.length === 0) return null;
+    if (timeline.length === 0) {
+      return null;
+    }
 
     return {
       min: timeline[0].time,
-      max: timeline[timeline.length - 1].time,
+      max: timeline.at(-1).time,
     };
   }, [timeline]);
 
   const normalizedTimelineRange = useMemo<[number, number] | null>(() => {
-    if (!debouncedTimelineRange || !timelineBounds) return null;
+    if (!(debouncedTimelineRange && timelineBounds)) {
+      return null;
+    }
 
     const [rawStart, rawEnd] = debouncedTimelineRange;
     const start = Math.max(
       timelineBounds.min,
-      Math.min(rawStart, rawEnd, timelineBounds.max),
+      Math.min(rawStart, rawEnd, timelineBounds.max)
     );
     const end = Math.min(
       timelineBounds.max,
-      Math.max(rawStart, rawEnd, timelineBounds.min),
+      Math.max(rawStart, rawEnd, timelineBounds.min)
     );
 
     return [start, end];
@@ -242,16 +249,18 @@ export function MyMap() {
 
   const articleMatchesSelectedTopic = useCallback(
     (id: string) => {
-      if (selectedTopic === "all") return true;
+      if (selectedTopic === "all") {
+        return true;
+      }
 
       const topic = articlesById[id]?.["llm-topic"] || "Brez teme";
       return topic === selectedTopic;
     },
-    [articlesById, selectedTopic],
+    [articlesById, selectedTopic]
   );
 
   const filteredGeoJson = useMemo<CityFeatureCollection>(() => {
-    if (!baseGeoJson || !normalizedTimelineRange) {
+    if (!(baseGeoJson && normalizedTimelineRange)) {
       return EMPTY_GEOJSON;
     }
 
@@ -267,7 +276,9 @@ export function MyMap() {
         return time !== undefined && time >= start && time <= end;
       });
 
-      if (filteredIds.length === 0) continue;
+      if (filteredIds.length === 0) {
+        continue;
+      }
 
       features.push({
         ...feature,
@@ -285,7 +296,9 @@ export function MyMap() {
   }, [articleTimeById, baseGeoJson, normalizedTimelineRange]);
 
   const topicFilteredGeoJson = useMemo<CityFeatureCollection>(() => {
-    if (selectedTopic === "all") return filteredGeoJson;
+    if (selectedTopic === "all") {
+      return filteredGeoJson;
+    }
 
     const features: CityFeature[] = [];
 
@@ -295,7 +308,9 @@ export function MyMap() {
         : [];
       const filteredIds = ids.filter(articleMatchesSelectedTopic);
 
-      if (filteredIds.length === 0) continue;
+      if (filteredIds.length === 0) {
+        continue;
+      }
 
       features.push({
         ...feature,
@@ -313,16 +328,18 @@ export function MyMap() {
   }, [articleMatchesSelectedTopic, filteredGeoJson, selectedTopic]);
 
   const timelineArticleCount = useMemo(() => {
-    if (!baseGeoJson || !timelineRange || !timelineBounds) return 0;
+    if (!(baseGeoJson && timelineRange && timelineBounds)) {
+      return 0;
+    }
 
     const [rawStart, rawEnd] = timelineRange;
     const start = Math.max(
       timelineBounds.min,
-      Math.min(rawStart, rawEnd, timelineBounds.max),
+      Math.min(rawStart, rawEnd, timelineBounds.max)
     );
     const end = Math.min(
       timelineBounds.max,
-      Math.max(rawStart, rawEnd, timelineBounds.min),
+      Math.max(rawStart, rawEnd, timelineBounds.min)
     );
     const visibleIds = new Set<string>();
 
@@ -368,7 +385,9 @@ export function MyMap() {
 
     for (const feature of topicFilteredGeoJson.features) {
       const country = feature.properties?.country;
-      if (typeof country !== "string") continue;
+      if (typeof country !== "string") {
+        continue;
+      }
 
       let ids = idsByCountry.get(country);
       if (!ids) {
@@ -382,7 +401,7 @@ export function MyMap() {
     }
 
     return Object.fromEntries(
-      Array.from(idsByCountry, ([country, ids]) => [country, ids.size]),
+      Array.from(idsByCountry, ([country, ids]) => [country, ids.size])
     );
   }, [topicFilteredGeoJson]);
 
@@ -405,7 +424,9 @@ export function MyMap() {
   }, []);
 
   const handleDotClick = useCallback((ids: string[]) => {
-    if (ids.length === 0) return;
+    if (ids.length === 0) {
+      return;
+    }
 
     setSelectedDotArticleIds(ids);
     setSelectedArticleId(ids[0]);
@@ -415,7 +436,7 @@ export function MyMap() {
   const handleArticleSelect = useCallback((id: string) => {
     setSelectedArticleId(id);
     setSelectedDotArticleIds((ids) =>
-      ids.length > 0 && ids.includes(id) ? ids : [],
+      ids.length > 0 && ids.includes(id) ? ids : []
     );
   }, []);
 
@@ -431,33 +452,33 @@ export function MyMap() {
 
   return (
     <SidebarProvider
-      open={sidebarOpen}
-      onOpenChange={setSidebarOpen}
       className="min-h-0 flex-1"
+      onOpenChange={setSidebarOpen}
+      open={sidebarOpen}
     >
       {/* Explorator Sidebar */}
       <Explorator
+        articlesById={articlesById}
         country={selectedCountry}
         geoJson={filteredGeoJson}
-        articlesById={articlesById}
+        onClearSelectedDot={handleClearSelectedDot}
+        onSelectArticle={handleArticleSelect}
+        onSelectedTopicChange={setSelectedTopic}
         selectedArticleId={selectedArticleId}
         selectedDotArticleIds={selectedDotArticleIds}
         selectedTopic={selectedTopic}
-        onSelectedTopicChange={setSelectedTopic}
-        onSelectArticle={handleArticleSelect}
-        onClearSelectedDot={handleClearSelectedDot}
       />
 
-      <div className="flex flex-1 min-h-0 flex-col gap-3">
-        <Card className="p-0 flex-1 min-h-0 overflow-hidden relative">
+      <div className="flex min-h-0 flex-1 flex-col gap-3">
+        <Card className="relative min-h-0 flex-1 overflow-hidden p-0">
           {selectedCountry && (
-            <div className="absolute top-4 left-4 z-10 bg-background text-foreground px-4 py-2 shadow-md border font-semibold flex items-center justify-between gap-4">
+            <div className="absolute top-4 left-4 z-10 flex items-center justify-between gap-4 border bg-background px-4 py-2 font-semibold text-foreground shadow-md">
               <span>Selected: {selectedCountry.name}</span>
               <Button
-                variant="link"
-                size="sm"
-                onClick={handleClearCountry}
                 className="h-auto text-sm"
+                onClick={handleClearCountry}
+                size="sm"
+                variant="link"
               >
                 Clear
               </Button>
@@ -471,15 +492,15 @@ export function MyMap() {
             <MapControls position="top-right" />
             <ClickableCountries
               countryArticleCounts={countryArticleCounts}
-              selectedCountry={selectedCountry}
               onCountryClick={handleCountryClick}
+              selectedCountry={selectedCountry}
             />
             <CountryDots
+              articlesById={articlesById}
               country={selectedCountry}
               data={topicFilteredGeoJson}
-              articlesById={articlesById}
-              selectedArticleId={selectedArticleId}
               onDotClick={handleDotClick}
+              selectedArticleId={selectedArticleId}
             />
           </MapComponent>
 
@@ -491,21 +512,21 @@ export function MyMap() {
 
         {timelineRange && timelineBounds ? (
           <TimelineSlider
-            value={timelineRange}
-            min={timelineBounds.min}
-            max={timelineBounds.max}
-            step={DAY_MS}
-            startLabel={formatTimelineDate(
-              Math.min(timelineRange[0], timelineRange[1]),
-            )}
-            endLabel={formatTimelineDate(
-              Math.max(timelineRange[0], timelineRange[1]),
-            )}
             articleCount={timelineArticleCount}
+            endLabel={formatTimelineDate(
+              Math.max(timelineRange[0], timelineRange[1])
+            )}
+            max={timelineBounds.max}
+            min={timelineBounds.min}
             onValueChange={setTimelineRange}
+            startLabel={formatTimelineDate(
+              Math.min(timelineRange[0], timelineRange[1])
+            )}
+            step={DAY_MS}
+            value={timelineRange}
           />
         ) : (
-          <div className="fixed right-8 bottom-8 left-8 z-1000 border bg-background/95 px-4 py-3 text-xs text-muted-foreground shadow-md backdrop-blur">
+          <div className="fixed right-8 bottom-8 left-8 z-1000 border bg-background/95 px-4 py-3 text-muted-foreground text-xs shadow-md backdrop-blur">
             {timelineLoadError ?? "Nalaganje časovnice ..."}
           </div>
         )}

@@ -5,9 +5,9 @@ import App from "./App.tsx";
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
-{/*     <ConvexProvider client={convex}>
+    {/*     <ConvexProvider client={convex}>
      
     </ConvexProvider> */}
-     <App />
-  </StrictMode>,
+    <App />
+  </StrictMode>
 );

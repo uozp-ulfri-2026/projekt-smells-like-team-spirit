@@ -1,5 +1,5 @@
-import { readFile, writeFile, mkdir } from "node:fs/promises";
 import { existsSync } from "node:fs";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { createOpenAI } from "@ai-sdk/openai";
 import { generateText } from "ai";
@@ -7,173 +7,173 @@ import YAML from "yaml";
 import { z } from "zod";
 
 const lm_studio = createOpenAI({
-	baseURL: "http://localhost:1234/v1",
-	apiKey: "not-needed-for-local",
+  baseURL: "http://localhost:1234/v1",
+  apiKey: "not-needed-for-local",
 });
 
 const extraction_schema = z.object({
-	topic: z.enum([
-		"politika",
-		"vojna_in_konflikti",
-		"naravne_nesrece",
-		"prometne_nesrece",
-		"kriminal",
-		"sport",
-		"kultura",
-		"zabava",
-		"tehnologija",
-		"gospodarstvo",
-		"zdravje",
-		"okolje",
-		"turizem",
-		"gastronomija",
-		"drugo",
-	]),
-	country: z.string().nullable(),
-	city: z.string().nullable(),
+  topic: z.enum([
+    "politika",
+    "vojna_in_konflikti",
+    "naravne_nesrece",
+    "prometne_nesrece",
+    "kriminal",
+    "sport",
+    "kultura",
+    "zabava",
+    "tehnologija",
+    "gospodarstvo",
+    "zdravje",
+    "okolje",
+    "turizem",
+    "gastronomija",
+    "drugo",
+  ]),
+  country: z.string().nullable(),
+  city: z.string().nullable(),
 });
 
-type ArticleCleaned = {
-	_id?: string;
-	title?: string;
-	lead?: string;
-	paragraphs?: Array<string>;
-	keywords?: Array<string>;
-	gpt_keywords?: Array<string>;
-};
+interface ArticleCleaned {
+  _id?: string;
+  gpt_keywords?: string[];
+  keywords?: string[];
+  lead?: string;
+  paragraphs?: string[];
+  title?: string;
+}
 
-type LoadedArticle = {
-	_id: string;
-	text: string;
-};
+interface LoadedArticle {
+  _id: string;
+  text: string;
+}
 
-type ArticleLoadResult = {
-	total_articles: number;
-	articles: LoadedArticle[];
-};
+interface ArticleLoadResult {
+  articles: LoadedArticle[];
+  total_articles: number;
+}
 
 type ExtractionOutput = z.infer<typeof extraction_schema>;
 
-type SavedExtraction = {
-	_id: string;
-	topic: ExtractionOutput["topic"];
-	country: string | null;
-	city: string | null;
-};
+interface SavedExtraction {
+  _id: string;
+  city: string | null;
+  country: string | null;
+  topic: ExtractionOutput["topic"];
+}
 
 type ErrorEntry = ArticleCleaned & {
-	error: string;
-	received_topic?: string;
-	error_details?: string;
-	raw_response?: string;
+  error: string;
+  received_topic?: string;
+  error_details?: string;
+  raw_response?: string;
 };
 
 async function load_articles(
-	file_path: string | URL,
-	offset: number = 0,
-	size?: number,
+  file_path: string | URL,
+  offset = 0,
+  size?: number
 ): Promise<ArticleLoadResult> {
-	const raw_text = await readFile(file_path, "utf8");
-	const parsed_yaml = YAML.parse(raw_text) as unknown;
+  const raw_text = await readFile(file_path, "utf8");
+  const parsed_yaml = YAML.parse(raw_text) as unknown;
 
-	const article_list = Array.isArray(parsed_yaml)
-		? (parsed_yaml as ArticleCleaned[])
-		: [parsed_yaml as ArticleCleaned];
+  const article_list = Array.isArray(parsed_yaml)
+    ? (parsed_yaml as ArticleCleaned[])
+    : [parsed_yaml as ArticleCleaned];
 
-	const total_articles = article_list.length;
-	const sliced_articles =
-		typeof size === "number"
-			? article_list.slice(offset, offset + size)
-			: article_list.slice(offset);
+  const total_articles = article_list.length;
+  const sliced_articles =
+    typeof size === "number"
+      ? article_list.slice(offset, offset + size)
+      : article_list.slice(offset);
 
-	const mapped_articles = sliced_articles.map((article, index) => {
-		const id = String(article._id ?? offset + index + 1);
+  const mapped_articles = sliced_articles.map((article, index) => {
+    const id = String(article._id ?? offset + index + 1);
 
-		const parts = [
-			article.title ? `title:\n${article.title}` : "",
-			article.lead ? `lead:\n${article.lead}` : "",
-			article.paragraphs && article.paragraphs.length > 0
-				? `paragraphs:\n${article.paragraphs.slice(0, 6).join("\n\n")}`
-				: "",
-			article.keywords && article.keywords.length > 0
-				? `keywords:\n${article.keywords.join(", ")}`
-				: "",
-			article.gpt_keywords && article.gpt_keywords.length > 0
-				? `gpt_keywords:\n${article.gpt_keywords.join(", ")}`
-				: "",
-		].filter((part) => part.trim().length > 0);
+    const parts = [
+      article.title ? `title:\n${article.title}` : "",
+      article.lead ? `lead:\n${article.lead}` : "",
+      article.paragraphs && article.paragraphs.length > 0
+        ? `paragraphs:\n${article.paragraphs.slice(0, 6).join("\n\n")}`
+        : "",
+      article.keywords && article.keywords.length > 0
+        ? `keywords:\n${article.keywords.join(", ")}`
+        : "",
+      article.gpt_keywords && article.gpt_keywords.length > 0
+        ? `gpt_keywords:\n${article.gpt_keywords.join(", ")}`
+        : "",
+    ].filter((part) => part.trim().length > 0);
 
-		return {
-			_id: id,
-			text: parts.length > 0 ? parts.join("\n\n").slice(0, 7000) : "",
-		};
-	});
+    return {
+      _id: id,
+      text: parts.length > 0 ? parts.join("\n\n").slice(0, 7000) : "",
+    };
+  });
 
-	return {
-		total_articles,
-		articles: mapped_articles,
-	};
+  return {
+    total_articles,
+    articles: mapped_articles,
+  };
 }
 
 function getNextRunIndex(): number {
-	const outDir = new URL("../assets/ai/outputs/", import.meta.url);
-	let index = 0;
-	while (
-		existsSync(new URL(`output${String(index).padStart(2, "0")}.json`, outDir))
-	) {
-		index += 1;
-	}
-	return index;
+  const outDir = new URL("../assets/ai/outputs/", import.meta.url);
+  let index = 0;
+  while (
+    existsSync(new URL(`output${String(index).padStart(2, "0")}.json`, outDir))
+  ) {
+    index += 1;
+  }
+  return index;
 }
 
 function getOutputPathForIndex(index: number): string {
-	return fileURLToPath(
-		new URL(
-			`output${String(index).padStart(2, "0")}.json`,
-			new URL("../assets/ai/outputs/", import.meta.url),
-		),
-	);
+  return fileURLToPath(
+    new URL(
+      `output${String(index).padStart(2, "0")}.json`,
+      new URL("../assets/ai/outputs/", import.meta.url)
+    )
+  );
 }
 
 function getErrorPathForIndex(index: number): string {
-	return fileURLToPath(
-		new URL(
-			`errors${String(index).padStart(2, "0")}.json`,
-			new URL("../assets/ai/errors/", import.meta.url),
-		),
-	);
+  return fileURLToPath(
+    new URL(
+      `errors${String(index).padStart(2, "0")}.json`,
+      new URL("../assets/ai/errors/", import.meta.url)
+    )
+  );
 }
 
 async function appendSavedResult(
-	outputPath: string,
-	entry: SavedExtraction,
+  outputPath: string,
+  entry: SavedExtraction
 ): Promise<void> {
-	await mkdir(new URL("../assets/ai/outputs/", import.meta.url), {
-		recursive: true,
-	});
+  await mkdir(new URL("../assets/ai/outputs/", import.meta.url), {
+    recursive: true,
+  });
 
-	let results: SavedExtraction[] = [];
-	if (existsSync(outputPath)) {
-		const existing = await readFile(outputPath, "utf8");
-		results = JSON.parse(existing) as SavedExtraction[];
-	}
+  let results: SavedExtraction[] = [];
+  if (existsSync(outputPath)) {
+    const existing = await readFile(outputPath, "utf8");
+    results = JSON.parse(existing) as SavedExtraction[];
+  }
 
-	const existingIndex = results.findIndex((result) => result._id === entry._id);
-	if (existingIndex >= 0) {
-		results[existingIndex] = entry;
-	} else {
-		results.push(entry);
-	}
+  const existingIndex = results.findIndex((result) => result._id === entry._id);
+  if (existingIndex >= 0) {
+    results[existingIndex] = entry;
+  } else {
+    results.push(entry);
+  }
 
-	await writeFile(outputPath, JSON.stringify(results, null, 2), "utf8");
+  await writeFile(outputPath, JSON.stringify(results, null, 2), "utf8");
 }
 
 async function extract_article_data(
-	article: LoadedArticle,
+  article: LoadedArticle
 ): Promise<ExtractionOutput> {
-	const result = await generateText({
-		model: lm_studio("gemma-4"),
-		system: `You are an information extraction system for Slovenian MMC news articles.
+  const result = await generateText({
+    model: lm_studio("gemma-4"),
+    system: `You are an information extraction system for Slovenian MMC news articles.
 
 Your task is to extract only:
 1. the main topic of the article -- IT IS VERY VERY IMPORTANT THAY YOU ONLY CHOOSE ONE TOPIC FROM THE ALLOWED TOPICS LIST -- DO NOT INVENT NEW TOPICS,
@@ -302,195 +302,195 @@ VERY IMPORTANT: Be careful about these mistakes you often make:  Do not invent t
 Topics you most frequently invent are "nauka" or "nauk" - use "drugo" instead, "koncerti" - use "zabava" instead, "moda" - use "kultura" instead, you often make a typo "gospodstvo" instead of gospodarstvo.
 `,
 
-		prompt: `Extract the main topic, country and place from this Slovenian MMC article. Return only the required JSON object.\n\n${article.text}.`,
-		temperature: 0.1,
-	});
+    prompt: `Extract the main topic, country and place from this Slovenian MMC article. Return only the required JSON object.\n\n${article.text}.`,
+    temperature: 0.1,
+  });
 
-	const raw_response = result.text?.trim() ?? "";
-	if (!raw_response) {
-		throw new Error("Model returned an empty response.");
-	}
+  const raw_response = result.text?.trim() ?? "";
+  if (!raw_response) {
+    throw new Error("Model returned an empty response.");
+  }
 
-	let parsed_response: unknown;
-	try {
-		parsed_response = JSON.parse(raw_response) as unknown;
-	} catch (parseError) {
-		const parseMessage =
-			parseError instanceof Error ? parseError.message : String(parseError);
-		throw new Error(
-			`Model returned non-JSON text. Parse error: ${parseMessage}\nRaw response:\n${raw_response}`,
-		);
-	}
+  let parsed_response: unknown;
+  try {
+    parsed_response = JSON.parse(raw_response) as unknown;
+  } catch (parseError) {
+    const parseMessage =
+      parseError instanceof Error ? parseError.message : String(parseError);
+    throw new Error(
+      `Model returned non-JSON text. Parse error: ${parseMessage}\nRaw response:\n${raw_response}`
+    );
+  }
 
-	const validation = extraction_schema.safeParse(parsed_response);
-	if (!validation.success) {
-		const parsedTopic =
-			typeof parsed_response === "object" &&
-			parsed_response !== null &&
-			"topic" in parsed_response
-				? String((parsed_response as Record<string, unknown>).topic)
-				: undefined;
-		const issueText = validation.error.issues
-			.map((issue) => `${issue.path.join(".") || "<root>"}: ${issue.message}`)
-			.join(" | ");
-		throw new Error(
-			`Schema validation failed.\nReceived topic: ${parsedTopic ?? "(missing)"}\nValidation issues: ${issueText}\nRaw response:\n${raw_response}`,
-		);
-	}
+  const validation = extraction_schema.safeParse(parsed_response);
+  if (!validation.success) {
+    const parsedTopic =
+      typeof parsed_response === "object" &&
+      parsed_response !== null &&
+      "topic" in parsed_response
+        ? String((parsed_response as Record<string, unknown>).topic)
+        : undefined;
+    const issueText = validation.error.issues
+      .map((issue) => `${issue.path.join(".") || "<root>"}: ${issue.message}`)
+      .join(" | ");
+    throw new Error(
+      `Schema validation failed.\nReceived topic: ${parsedTopic ?? "(missing)"}\nValidation issues: ${issueText}\nRaw response:\n${raw_response}`
+    );
+  }
 
-	return validation.data;
+  return validation.data;
 }
 
 async function run_extraction() {
-	const file_path = process.argv[2]
-		? process.argv[2]
-		: new URL("../assets/cleaned/mmc-part-1.json", import.meta.url);
-	const current_offset = 0;
-	const resume_from_id = process.argv[3];
-	const output_index = process.argv[4]
-		? Number(process.argv[4])
-		: resume_from_id
-			? 0
-			: getNextRunIndex();
+  const file_path = process.argv[2]
+    ? process.argv[2]
+    : new URL("../assets/cleaned/mmc-part-1.json", import.meta.url);
+  const current_offset = 0;
+  const resume_from_id = process.argv[3];
+  const output_index = process.argv[4]
+    ? Number(process.argv[4])
+    : resume_from_id
+      ? 0
+      : getNextRunIndex();
 
-	if (!Number.isInteger(output_index) || output_index < 0) {
-		throw new Error("Output index must be a non-negative integer.");
-	}
+  if (!Number.isInteger(output_index) || output_index < 0) {
+    throw new Error("Output index must be a non-negative integer.");
+  }
 
-	try {
-		console.log(`📂 Loading articles...`);
+  try {
+    console.log("📂 Loading articles...");
 
-		const { total_articles, articles: loaded_articles } = await load_articles(
-			file_path,
-			current_offset,
-		);
+    const { total_articles, articles: loaded_articles } = await load_articles(
+      file_path,
+      current_offset
+    );
 
-		let articles = loaded_articles;
-		let resume_start_index = 0;
+    let articles = loaded_articles;
+    let resume_start_index = 0;
 
-		if (resume_from_id) {
-			const found_index = loaded_articles.findIndex(
-				(article) => article._id === resume_from_id,
-			);
+    if (resume_from_id) {
+      const found_index = loaded_articles.findIndex(
+        (article) => article._id === resume_from_id
+      );
 
-			if (found_index < 0) {
-				throw new Error(
-					`Resume _id not found in input file: ${resume_from_id}`,
-				);
-			}
+      if (found_index < 0) {
+        throw new Error(
+          `Resume _id not found in input file: ${resume_from_id}`
+        );
+      }
 
-			resume_start_index = found_index;
-			articles = loaded_articles.slice(found_index);
-			console.log(
-				`Resuming from _id ${resume_from_id} at article ${current_offset + found_index + 1}.`,
-			);
-		}
+      resume_start_index = found_index;
+      articles = loaded_articles.slice(found_index);
+      console.log(
+        `Resuming from _id ${resume_from_id} at article ${current_offset + found_index + 1}.`
+      );
+    }
 
-		console.log(`📊 Found a total of ${total_articles} articles in dataset.`);
-		console.log(
-			`Processing all articles (Offset: ${current_offset}, Count: ${articles.length})...\n`,
-		);
+    console.log(`📊 Found a total of ${total_articles} articles in dataset.`);
+    console.log(
+      `Processing all articles (Offset: ${current_offset}, Count: ${articles.length})...\n`
+    );
 
-		const runIndex = output_index;
-		const outputPath = getOutputPathForIndex(runIndex);
-		console.log(`📝 Output file: ${outputPath}`);
+    const runIndex = output_index;
+    const outputPath = getOutputPathForIndex(runIndex);
+    console.log(`📝 Output file: ${outputPath}`);
 
-		const batch_start_time = performance.now();
-		let processed_articles = 0;
+    const batch_start_time = performance.now();
+    let processed_articles = 0;
 
-		for (const [index, article] of articles.entries()) {
-			const global_index = current_offset + resume_start_index + index + 1;
+    for (const [index, article] of articles.entries()) {
+      const global_index = current_offset + resume_start_index + index + 1;
 
-			if (!article.text) {
-				console.log(`⚠️  Article ${global_index} is empty, skipping...`);
-				continue;
-			}
+      if (!article.text) {
+        console.log(`⚠️  Article ${global_index} is empty, skipping...`);
+        continue;
+      }
 
-			console.log(`--- Article ${global_index} ---`);
-			console.log(`${article.text.slice(0, 150)}...\n`);
-			console.log("🤖 AI is analyzing text...");
+      console.log(`--- Article ${global_index} ---`);
+      console.log(`${article.text.slice(0, 150)}...\n`);
+      console.log("🤖 AI is analyzing text...");
 
-			try {
-				const start_time = performance.now();
-				const extracted = await extract_article_data(article);
-				const end_time = performance.now();
-				processed_articles += 1;
+      try {
+        const start_time = performance.now();
+        const extracted = await extract_article_data(article);
+        const end_time = performance.now();
+        processed_articles += 1;
 
-				const saved: SavedExtraction = {
-					_id: article._id,
-					topic: extracted.topic,
-					country: extracted.country,
-					city: extracted.city,
-				};
+        const saved: SavedExtraction = {
+          _id: article._id,
+          topic: extracted.topic,
+          country: extracted.country,
+          city: extracted.city,
+        };
 
-				await appendSavedResult(outputPath, saved);
+        await appendSavedResult(outputPath, saved);
 
-				console.log("✅ Extraction Complete!");
-				console.log(
-					`⏱️  Time taken: ${((end_time - start_time) / 1000).toFixed(2)} seconds`,
-				);
-				console.log(`🆔 ID: "${article._id}"`);
-				console.log(`🏷️  Extracted Topic: "${extracted.topic}"`);
-				console.log(`🌍 Extracted Country: "${extracted.country || "(none)"}"`);
-				console.log(`🏙️  Extracted City: "${extracted.city || "(none)"}"\n`);
-			} catch (extractError) {
-				const errorMessage =
-					extractError instanceof Error
-						? extractError.message
-						: String(extractError);
-				const receivedTopicMatch = errorMessage.match(
-					/Received topic:\s*([^\n]+)/,
-				);
-				const receivedTopic = receivedTopicMatch?.[1]?.trim();
-				const isTopicValidationError =
-					errorMessage.includes("Schema validation failed") &&
-					Boolean(receivedTopic);
-				const normalizedError = isTopicValidationError
-					? "topic error"
-					: errorMessage;
-				const errorDetails = isTopicValidationError ? errorMessage : undefined;
-				const rawResponseMatch = errorMessage.match(
-					/Raw response:\n([\s\S]*)$/,
-				);
-				const rawResponse = rawResponseMatch?.[1]?.trim();
-				console.error(`❌ Error on _id ${article._id}:`, extractError);
-				const errorPath = getErrorPathForIndex(runIndex);
-				await mkdir(new URL("../assets/ai/errors/", import.meta.url), {
-					recursive: true,
-				});
+        console.log("✅ Extraction Complete!");
+        console.log(
+          `⏱️  Time taken: ${((end_time - start_time) / 1000).toFixed(2)} seconds`
+        );
+        console.log(`🆔 ID: "${article._id}"`);
+        console.log(`🏷️  Extracted Topic: "${extracted.topic}"`);
+        console.log(`🌍 Extracted Country: "${extracted.country || "(none)"}"`);
+        console.log(`🏙️  Extracted City: "${extracted.city || "(none)"}"\n`);
+      } catch (extractError) {
+        const errorMessage =
+          extractError instanceof Error
+            ? extractError.message
+            : String(extractError);
+        const receivedTopicMatch = errorMessage.match(
+          /Received topic:\s*([^\n]+)/
+        );
+        const receivedTopic = receivedTopicMatch?.[1]?.trim();
+        const isTopicValidationError =
+          errorMessage.includes("Schema validation failed") &&
+          Boolean(receivedTopic);
+        const normalizedError = isTopicValidationError
+          ? "topic error"
+          : errorMessage;
+        const errorDetails = isTopicValidationError ? errorMessage : undefined;
+        const rawResponseMatch = errorMessage.match(
+          /Raw response:\n([\s\S]*)$/
+        );
+        const rawResponse = rawResponseMatch?.[1]?.trim();
+        console.error(`❌ Error on _id ${article._id}:`, extractError);
+        const errorPath = getErrorPathForIndex(runIndex);
+        await mkdir(new URL("../assets/ai/errors/", import.meta.url), {
+          recursive: true,
+        });
 
-				let errors: ErrorEntry[] = [];
-				if (existsSync(errorPath)) {
-					const existing = await readFile(errorPath, "utf8");
-					errors = JSON.parse(existing) as ErrorEntry[];
-				}
+        let errors: ErrorEntry[] = [];
+        if (existsSync(errorPath)) {
+          const existing = await readFile(errorPath, "utf8");
+          errors = JSON.parse(existing) as ErrorEntry[];
+        }
 
-				const errorExists = errors.some((e) => e._id === article._id);
-				if (!errorExists) {
-					const errorEntry: ErrorEntry = {
-						...article,
-						_id: article._id,
-						error: normalizedError,
-						...(receivedTopic && { received_topic: receivedTopic }),
-						...(errorDetails && { error_details: errorDetails }),
-						...(rawResponse && { raw_response: rawResponse }),
-					};
-					errors.push(errorEntry);
-					await writeFile(errorPath, JSON.stringify(errors, null, 2), "utf8");
-				}
-			}
-		}
+        const errorExists = errors.some((e) => e._id === article._id);
+        if (!errorExists) {
+          const errorEntry: ErrorEntry = {
+            ...article,
+            _id: article._id,
+            error: normalizedError,
+            ...(receivedTopic && { received_topic: receivedTopic }),
+            ...(errorDetails && { error_details: errorDetails }),
+            ...(rawResponse && { raw_response: rawResponse }),
+          };
+          errors.push(errorEntry);
+          await writeFile(errorPath, JSON.stringify(errors, null, 2), "utf8");
+        }
+      }
+    }
 
-		const batch_end_time = performance.now();
-		console.log(
-			`Total time for ${processed_articles} articles: ${((batch_end_time - batch_start_time) / 1000).toFixed(2)} seconds`,
-		);
-	} catch (error) {
-		console.error(
-			"❌ Extraction failed. Ensure LM Studio is running on port 1234.",
-			error,
-		);
-	}
+    const batch_end_time = performance.now();
+    console.log(
+      `Total time for ${processed_articles} articles: ${((batch_end_time - batch_start_time) / 1000).toFixed(2)} seconds`
+    );
+  } catch (error) {
+    console.error(
+      "❌ Extraction failed. Ensure LM Studio is running on port 1234.",
+      error
+    );
+  }
 }
 
 await run_extraction();

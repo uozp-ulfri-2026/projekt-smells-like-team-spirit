@@ -1,24 +1,24 @@
 import { readFile, writeFile } from "node:fs/promises";
 
-type FullArticle = {
+interface FullArticle {
   _id?: unknown;
-  url?: unknown;
   date?: unknown;
-  title?: unknown;
   lead?: unknown;
   llm?: {
     topic?: unknown;
   };
-};
+  title?: unknown;
+  url?: unknown;
+}
 
-type LeanArticle = {
+interface LeanArticle {
   _id: string;
-  url?: string;
   date?: string;
+  lead?: string;
   "llm-topic"?: string;
   title?: string;
-  lead?: string;
-};
+  url?: string;
+}
 
 const TOPIC_SL_MAP: Record<string, string> = {
   DRUGO: "DRUGO",
@@ -49,9 +49,13 @@ function normalizeTopicKey(value: string): string {
 
 function mapTopicToSlovenian(topic: unknown): string | undefined {
   const str = asOptionalString(topic);
-  if (!str) return undefined;
+  if (!str) {
+    return;
+  }
   const mapped = TOPIC_SL_MAP[normalizeTopicKey(str)];
-  if (mapped) return mapped;
+  if (mapped) {
+    return mapped;
+  }
 
   // Fallback keeps readability for unseen topics.
   return str
@@ -67,11 +71,14 @@ function asOptionalString(value: unknown): string | undefined {
     const trimmed = value.trim();
     return trimmed.length > 0 ? trimmed : undefined;
   }
-  return undefined;
+  return;
 }
 
 async function main() {
-  const [inputPath = "assets/mmc-llm.json", outputPath = "public/mmc-lean.json"] = process.argv.slice(2);
+  const [
+    inputPath = "assets/mmc-llm.json",
+    outputPath = "public/mmc-lean.json",
+  ] = process.argv.slice(2);
 
   const raw = await readFile(inputPath, "utf8");
   const parsed = JSON.parse(raw) as unknown;
@@ -84,7 +91,9 @@ async function main() {
 
   for (const row of parsed as FullArticle[]) {
     const _id = asOptionalString(row?._id);
-    if (!_id) continue;
+    if (!_id) {
+      continue;
+    }
 
     lean.push({
       _id,

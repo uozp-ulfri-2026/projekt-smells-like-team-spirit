@@ -1,11 +1,11 @@
-import { type CSSProperties, type HTMLAttributes } from "react"
 import {
-  motion,
   type DOMMotionComponents,
   type MotionProps,
-} from "motion/react"
+  motion,
+} from "motion/react";
+import type { CSSProperties, HTMLAttributes } from "react";
 
-import { cn } from "@/lib/utils"
+import { cn } from "@/lib/utils";
 
 const motionElements = {
   article: motion.article,
@@ -20,18 +20,19 @@ const motionElements = {
   p: motion.p,
   section: motion.section,
   span: motion.span,
-} as const
+} as const;
 
 type MotionElementType = Extract<
   keyof DOMMotionComponents,
   keyof typeof motionElements
->
+>;
 
 interface LineShadowTextProps
-  extends Omit<HTMLAttributes<HTMLElement>, keyof MotionProps>, MotionProps {
-  children: string
-  shadowColor?: string
-  as?: MotionElementType
+  extends Omit<HTMLAttributes<HTMLElement>, keyof MotionProps>,
+    MotionProps {
+  as?: MotionElementType;
+  children: string;
+  shadowColor?: string;
 }
 
 export function LineShadowText({
@@ -41,11 +42,10 @@ export function LineShadowText({
   as: Component = "span",
   ...props
 }: LineShadowTextProps) {
-  const MotionComponent = motionElements[Component]
+  const MotionComponent = motionElements[Component];
 
   return (
     <MotionComponent
-      style={{ "--shadow-color": shadowColor } as CSSProperties}
       className={cn(
         "relative z-0 inline-flex",
         "after:absolute after:top-[0.04em] after:left-[0.04em] after:content-[attr(data-text)]",
@@ -55,9 +55,10 @@ export function LineShadowText({
         className
       )}
       data-text={children}
+      style={{ "--shadow-color": shadowColor } as CSSProperties}
       {...props}
     >
       {children}
     </MotionComponent>
-  )
+  );
 }
