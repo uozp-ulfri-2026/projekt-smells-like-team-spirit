@@ -19,12 +19,20 @@ type LeanArticle = {
   lead?: string
 }
 
-export default function ArticleCard({ id, onClose }: { id: string | null; onClose?: () => void }) {
+export default function ArticleCard({
+  id,
+  articlePath = "/mmc-lean.json",
+  onClose,
+}: {
+  id: string | null
+  articlePath?: string
+  onClose?: () => void
+}) {
   const [articlesById, setArticlesById] = useState<Record<string, LeanArticle>>({})
   const [article, setArticle] = useState<LeanArticle | null>(null)
 
   useEffect(() => {
-    fetch("/mmc-lean.json")
+    fetch(articlePath)
       .then((r) => r.json())
       .then((rows: LeanArticle[]) => {
         const byId: Record<string, LeanArticle> = {}
@@ -37,10 +45,10 @@ export default function ArticleCard({ id, onClose }: { id: string | null; onClos
       })
       .catch((err) => {
         // eslint-disable-next-line no-console
-        console.error("Failed to fetch mmc-lean.json:", err)
+        console.error(`Failed to fetch ${articlePath}:`, err)
         setArticlesById({})
       })
-  }, [])
+  }, [articlePath])
 
   useEffect(() => {
     if (!id) {

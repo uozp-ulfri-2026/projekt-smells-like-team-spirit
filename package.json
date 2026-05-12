@@ -10,7 +10,8 @@
 		"lint": "tsc && eslint .  --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
 		"preview": "vite preview",
 		"ui": "bunx --bun shadcn@latest",
-		"build:mmc-lean": "bun scripts/build-mmc-lean.ts"
+		"build:mmc-lean": "bun scripts/build-mmc-lean.ts",
+		"build:mmc-v2-public": "bun scripts/build-mainlocation-v2-public.ts"
 	},
 	"dependencies": {
 		"@ai-sdk/openai": "^3.0.63",
