@@ -32,8 +32,8 @@ const DATASETS: Record<
   { articlePath: string; geoJsonPath: string }
 > = {
   v2: {
-    articlePath: "/mmc-lean.json",
-    geoJsonPath: "/output.geojson",
+    articlePath: "/mmc-lean.v6.json",
+    geoJsonPath: "/output.v6.geojson",
   },
   old: {
     articlePath: "/mmc-lean.old.json",
