@@ -12,7 +12,7 @@ import { getTopicStyle } from "@/lib/topic-colors";
 
 export default function ArticleCard({
   id,
-  articlePath = "/mmc-lean.json",
+  articlePath = "/mmc-lean.v6.json",
   onClose,
 }: {
   id: string | null;
@@ -35,7 +35,7 @@ export default function ArticleCard({
 
     if (!data.byId[id]) {
       // eslint-disable-next-line no-console
-      console.debug("Article not found in mmc-lean.json for id:", id);
+      console.debug("Article not found in selected MMC dataset for id:", id);
     }
   }, [data, id]);
 
