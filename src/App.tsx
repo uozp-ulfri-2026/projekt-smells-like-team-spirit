@@ -1,3 +1,4 @@
+import { CircleDot, Map as MapIcon } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import ArticleCard from "@/components/article-card";
 import type { CountryData } from "@/components/clickable-countries";
@@ -26,6 +27,7 @@ const AUTOPLAY_DEFAULT_WINDOW_MS = 180 * DAY_MS;
 const AUTOPLAY_MIN_WINDOW_MS = 30 * DAY_MS;
 
 type DatasetId = "v2" | "old";
+type MapDisplayMode = "dots" | "heatmap";
 
 const DATASETS: Record<
   DatasetId,
@@ -161,6 +163,42 @@ function CountryColorLegend({ selectedTopic }: { selectedTopic: string }) {
   );
 }
 
+function MapDisplayToggle({
+  mode,
+  onModeChange,
+}: {
+  mode: MapDisplayMode;
+  onModeChange: (mode: MapDisplayMode) => void;
+}) {
+  return (
+    <fieldset className="absolute top-2 right-12 z-20 flex overflow-hidden border border-border bg-background shadow-sm">
+      <legend className="sr-only">Map display mode</legend>
+      <Button
+        aria-pressed={mode === "dots"}
+        className="h-8 border-0 px-2"
+        onClick={() => onModeChange("dots")}
+        title="Dots"
+        type="button"
+        variant={mode === "dots" ? "default" : "ghost"}
+      >
+        <CircleDot className="size-4" />
+        <span className="hidden sm:inline">Dots</span>
+      </Button>
+      <Button
+        aria-pressed={mode === "heatmap"}
+        className="h-8 border-0 px-2"
+        onClick={() => onModeChange("heatmap")}
+        title="Heatmap"
+        type="button"
+        variant={mode === "heatmap" ? "default" : "ghost"}
+      >
+        <MapIcon className="size-4" />
+        <span className="hidden sm:inline">Heatmap</span>
+      </Button>
+    </fieldset>
+  );
+}
+
 export default function App() {
   return (
     <main className="flex h-svh flex-col gap-8 overflow-hidden p-8 pb-28">
@@ -194,6 +232,8 @@ export function MyMap() {
     null
   );
   const [selectedTopic, setSelectedTopic] = useState("all");
+  const [mapDisplayMode, setMapDisplayMode] =
+    useState<MapDisplayMode>("heatmap");
   const [isTimelinePlaying, setIsTimelinePlaying] = useState(false);
   const timelineRangeRef = useRef<[number, number] | null>(timelineRange);
   const debouncedTimelineRange = useDebouncedValue(timelineRange, 250);
@@ -547,6 +587,15 @@ export function MyMap() {
     setSelectedDotArticleIds([]);
   }, []);
 
+  const handleMapDisplayModeChange = useCallback((mode: MapDisplayMode) => {
+    setMapDisplayMode(mode);
+
+    if (mode === "dots") {
+      setSelectedCountry(null);
+      setSelectedDotArticleIds([]);
+    }
+  }, []);
+
   return (
     <SidebarProvider
       className="min-h-0 flex-1"
@@ -568,7 +617,7 @@ export function MyMap() {
 
       <div className="flex min-h-0 flex-1 flex-col gap-3">
         <Card className="relative min-h-0 flex-1 overflow-hidden p-0">
-          {selectedCountry && (
+          {selectedCountry && mapDisplayMode === "heatmap" && (
             <div className="absolute top-4 left-4 z-10 flex items-center justify-between gap-4 border bg-background px-4 py-2 font-semibold text-foreground shadow-md">
               <span>Selected: {selectedCountry.name}</span>
               <Button
@@ -581,16 +630,25 @@ export function MyMap() {
               </Button>
             </div>
           )}
-          {!selectedCountry && (
+          {!selectedCountry && mapDisplayMode === "heatmap" && (
             <CountryColorLegend selectedTopic={selectedTopic} />
           )}
 
           <MapComponent center={[14.5058, 46.0569]} zoom={4}>
+            <MapDisplayToggle
+              mode={mapDisplayMode}
+              onModeChange={handleMapDisplayModeChange}
+            />
             <MapControls position="top-right" />
             <ClickableCountries
               countryArticleCounts={countryArticleCounts}
-              onCountryClick={handleCountryClick}
-              selectedCountry={selectedCountry}
+              onCountryClick={
+                mapDisplayMode === "heatmap" ? handleCountryClick : undefined
+              }
+              selectedCountry={
+                mapDisplayMode === "heatmap" ? selectedCountry : null
+              }
+              showChoropleth={mapDisplayMode === "heatmap"}
             />
             <CountryDots
               articlesById={articlesById}
@@ -598,6 +656,7 @@ export function MyMap() {
               data={topicFilteredGeoJson}
               onDotClick={handleDotClick}
               selectedArticleId={selectedArticleId}
+              showAllCountries={mapDisplayMode === "dots"}
             />
           </MapComponent>
 

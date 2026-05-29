@@ -41,6 +41,7 @@ interface CountryDotsProps {
   data: GeoJSON.FeatureCollection<GeoJSON.Point, DotProperties>;
   onDotClick?: (ids: string[]) => void;
   selectedArticleId: string | null;
+  showAllCountries?: boolean;
 }
 
 type Coordinate = [number, number];
@@ -217,6 +218,7 @@ export function CountryDots({
   articlesById,
   selectedArticleId,
   onDotClick,
+  showAllCountries = false,
 }: CountryDotsProps) {
   const { map, isLoaded } = useMap();
   const id = useId();
@@ -229,16 +231,21 @@ export function CountryDots({
   >({});
 
   const country_name = useMemo(() => country?.name ?? null, [country]);
+  const active_country_name = showAllCountries ? null : country_name;
+  const should_show_dots = showAllCountries || Boolean(active_country_name);
 
   const targetCityAnchors = useMemo(() => {
     const anchors = new Map<string, Coordinate>();
 
-    if (!country_name) {
+    if (!should_show_dots) {
       return anchors;
     }
 
     for (const feature of data.features) {
-      if (feature.properties?.country !== country_name) {
+      if (
+        active_country_name &&
+        feature.properties?.country !== active_country_name
+      ) {
         continue;
       }
 
@@ -254,12 +261,12 @@ export function CountryDots({
     }
 
     return anchors;
-  }, [country_name, data]);
+  }, [active_country_name, data, should_show_dots]);
 
   const enrichedData = useMemo<
     GeoJSON.FeatureCollection<GeoJSON.Point, DotProperties>
   >(() => {
-    if (!country_name) {
+    if (!should_show_dots) {
       return {
         ...data,
         features: [],
@@ -269,7 +276,10 @@ export function CountryDots({
     const features: GeoJSON.Feature<GeoJSON.Point, DotProperties>[] = [];
 
     for (const feature of data.features) {
-      if (feature.properties?.country !== country_name) {
+      if (
+        active_country_name &&
+        feature.properties?.country !== active_country_name
+      ) {
         continue;
       }
 
@@ -342,10 +352,17 @@ export function CountryDots({
       ...data,
       features,
     };
-  }, [articlesById, country_name, data, labelAnchorsByKey, selectedArticleId]);
+  }, [
+    active_country_name,
+    articlesById,
+    data,
+    labelAnchorsByKey,
+    selectedArticleId,
+    should_show_dots,
+  ]);
 
   const refreshLabelAnchors = useCallback(() => {
-    if (!(map && country_name) || targetCityAnchors.size === 0) {
+    if (!(map && should_show_dots) || targetCityAnchors.size === 0) {
       setLabelAnchorsByKey({});
       return;
     }
@@ -444,7 +461,7 @@ export function CountryDots({
 
       return nextAnchors;
     });
-  }, [country_name, map, targetCityAnchors]);
+  }, [map, should_show_dots, targetCityAnchors]);
 
   useEffect(() => {
     if (!(isLoaded && map)) {
@@ -494,7 +511,10 @@ export function CountryDots({
     if (!map.getSource(source_id)) {
       map.addSource(source_id, {
         type: "geojson",
-        data: enrichedData,
+        data: {
+          type: "FeatureCollection",
+          features: [],
+        },
         generateId: true,
       });
 
@@ -606,7 +626,7 @@ export function CountryDots({
       }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isLoaded, map, source_id, layer_id, pulse_layer_id, enrichedData]);
+  }, [isLoaded, map, source_id, layer_id, pulse_layer_id]);
 
   useEffect(() => {
     if (!(isLoaded && map)) {
@@ -685,7 +705,7 @@ export function CountryDots({
       return;
     }
 
-    if (!country_name) {
+    if (!should_show_dots) {
       map.setLayoutProperty(layer_id, "visibility", "none");
       map.setLayoutProperty(pulse_layer_id, "visibility", "none");
       return;
@@ -693,13 +713,30 @@ export function CountryDots({
 
     map.setLayoutProperty(layer_id, "visibility", "visible");
     map.setLayoutProperty(pulse_layer_id, "visibility", "visible");
-    map.setFilter(layer_id, ["==", ["get", "country"], country_name]);
-    map.setFilter(pulse_layer_id, [
-      "all",
-      ["==", ["get", "country"], country_name],
-      ["==", ["get", "isSelected"], true],
-    ]);
-  }, [isLoaded, map, layer_id, pulse_layer_id, country_name]);
+    map.setFilter(
+      layer_id,
+      active_country_name
+        ? ["==", ["get", "country"], active_country_name]
+        : ["has", "country"]
+    );
+    map.setFilter(
+      pulse_layer_id,
+      active_country_name
+        ? [
+            "all",
+            ["==", ["get", "country"], active_country_name],
+            ["==", ["get", "isSelected"], true],
+          ]
+        : ["==", ["get", "isSelected"], true]
+    );
+  }, [
+    active_country_name,
+    isLoaded,
+    map,
+    layer_id,
+    pulse_layer_id,
+    should_show_dots,
+  ]);
 
   useEffect(() => {
     if (!(isLoaded && map?.getLayer(layer_id))) {

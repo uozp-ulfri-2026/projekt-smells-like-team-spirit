@@ -30,6 +30,7 @@ interface ClickableCountriesProps {
   countryArticleCounts?: Record<string, number>;
   onCountryClick?: (country: CountryData) => void;
   selectedCountry?: CountryData | null;
+  showChoropleth?: boolean;
 }
 
 const source_id = "countries-source";
@@ -59,6 +60,20 @@ const choropleth_fill_opacity = [
   0.58,
 ] as ExpressionSpecification;
 
+const neutral_fill_color = [
+  "case",
+  ["boolean", ["feature-state", "hover"], false],
+  "#64748b",
+  "#0f172a",
+] as ExpressionSpecification;
+
+const neutral_fill_opacity = [
+  "case",
+  ["boolean", ["feature-state", "hover"], false],
+  0.2,
+  0.03,
+] as ExpressionSpecification;
+
 const overview_outline_color = [
   "case",
   ["boolean", ["feature-state", "hover"], false],
@@ -66,10 +81,24 @@ const overview_outline_color = [
   "rgba(0, 0, 0, 0)",
 ] as ExpressionSpecification;
 
+const neutral_outline_color = [
+  "case",
+  ["boolean", ["feature-state", "hover"], false],
+  "#94a3b8",
+  "rgba(0, 0, 0, 0)",
+] as ExpressionSpecification;
+
 const overview_outline_width = [
   "case",
   ["boolean", ["feature-state", "hover"], false],
   1.5,
+  0,
+] as ExpressionSpecification;
+
+const neutral_outline_width = [
+  "case",
+  ["boolean", ["feature-state", "hover"], false],
+  1.25,
   0,
 ] as ExpressionSpecification;
 
@@ -232,6 +261,7 @@ export function ClickableCountries({
   countryArticleCounts = {},
   selectedCountry,
   onCountryClick,
+  showChoropleth = true,
 }: ClickableCountriesProps) {
   const { map, isLoaded } = useMap();
   const selectedCountryName = selectedCountry?.name ?? null;
@@ -488,21 +518,26 @@ export function ClickableCountries({
       return;
     }
 
-    const showChoropleth = !selectedCountryName;
-    map.setPaintProperty(
-      layer_id,
-      "fill-color",
-      showChoropleth
-        ? choropleth_fill_color
-        : selectedFillColor(selectedCountryName)
-    );
-    map.setPaintProperty(
-      layer_id,
-      "fill-opacity",
-      showChoropleth
-        ? choropleth_fill_opacity
-        : selectedFillOpacity(selectedCountryName)
-    );
+    const shouldShowChoropleth = showChoropleth && !selectedCountryName;
+    let fillColor = neutral_fill_color;
+    let fillOpacity = neutral_fill_opacity;
+    let outlineColor = neutral_outline_color;
+    let outlineWidth = neutral_outline_width;
+
+    if (shouldShowChoropleth) {
+      fillColor = choropleth_fill_color;
+      fillOpacity = choropleth_fill_opacity;
+      outlineColor = overview_outline_color;
+      outlineWidth = overview_outline_width;
+    } else if (selectedCountryName) {
+      fillColor = selectedFillColor(selectedCountryName);
+      fillOpacity = selectedFillOpacity(selectedCountryName);
+      outlineColor = selectedOutlineColor(selectedCountryName);
+      outlineWidth = selectedOutlineWidth(selectedCountryName);
+    }
+
+    map.setPaintProperty(layer_id, "fill-color", fillColor);
+    map.setPaintProperty(layer_id, "fill-opacity", fillOpacity);
 
     if (!map.getLayer(outline_layer_id)) {
       return;
@@ -531,18 +566,14 @@ export function ClickableCountries({
     map.setPaintProperty(
       outline_layer_id,
       "line-color",
-      showChoropleth
-        ? overview_outline_color
-        : selectedOutlineColor(selectedCountryName)
+      outlineColor
     );
     map.setPaintProperty(
       outline_layer_id,
       "line-width",
-      showChoropleth
-        ? overview_outline_width
-        : selectedOutlineWidth(selectedCountryName)
+      outlineWidth
     );
-  }, [isLoaded, map, selectedCountryName]);
+  }, [isLoaded, map, selectedCountryName, showChoropleth]);
 
   useEffect(() => {
     if (!(isLoaded && map)) {
