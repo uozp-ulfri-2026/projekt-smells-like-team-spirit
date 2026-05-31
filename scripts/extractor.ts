@@ -29,6 +29,77 @@ const extraction_schema = z.object({
     "gastronomija",
     "drugo",
   ]),
+  subtopic: z.enum([
+    "poplave",
+    "pozari",
+    "potresi",
+    "neurja",
+    "suse",
+    "plazovi",
+    "prometne_nesrece",
+    "eksplozije",
+    "tehnicne_okvare",
+    "delovne_nesrece",
+    "resevanje",
+    "nesrece_v_naravi",
+    "volitve",
+    "vlada",
+    "diplomacija",
+    "zakonodaja",
+    "protesti",
+    "napadi",
+    "vojaske_operacije",
+    "mirovna_pogajanja",
+    "begunci",
+    "nasilna_dejanja",
+    "financni_kriminal",
+    "preiskave",
+    "sodni_postopki",
+    "kibernetski_kriminal",
+    "nogomet",
+    "kosarka",
+    "zimski_sporti",
+    "avtomoto_sport",
+    "tenis",
+    "kolesarstvo",
+    "rokomet",
+    "odbojka",
+    "umetna_inteligenca",
+    "vesolje",
+    "kibernetska_varnost",
+    "programska_oprema",
+    "naprave",
+    "znanost_in_raziskave",
+    "podjetja",
+    "cene_in_inflacija",
+    "energetika",
+    "trgi_in_finance",
+    "zaposlovanje",
+    "javno_zdravje",
+    "bolezni",
+    "zdravstvo",
+    "zdravljenje_in_raziskave",
+    "podnebne_spremembe",
+    "onesnazevanje",
+    "varovanje_narave",
+    "energetski_prehod",
+    "film",
+    "glasba",
+    "knjizevnost",
+    "gledalisce",
+    "vizualna_umetnost",
+    "kulturna_dediscina",
+    "znani",
+    "televizija",
+    "koncerti_in_prireditve",
+    "destinacije",
+    "nastanitve",
+    "potovanja",
+    "recepti",
+    "restavracije",
+    "hrana_in_pijaca",
+    "drugo",
+  ]),
   country: z.string().nullable(),
   city: z.string().nullable(),
 });
@@ -58,6 +129,7 @@ interface SavedExtraction {
   _id: string;
   city: string | null;
   country: string | null;
+  subtopic: ExtractionOutput["subtopic"];
   topic: ExtractionOutput["topic"];
 }
 
@@ -177,8 +249,9 @@ async function extract_article_data(
 
 Your task is to extract only:
 1. the main topic of the article -- IT IS VERY VERY IMPORTANT THAY YOU ONLY CHOOSE ONE TOPIC FROM THE ALLOWED TOPICS LIST -- DO NOT INVENT NEW TOPICS,
-2. the country where the main event happened,
-3. the city/place where the main event happened.
+2. one subtopic from the allowed subtopics list,
+3. the country where the main event happened,
+4. the city/place where the main event happened.
 
 The articles are written in Slovenian.
 
@@ -201,6 +274,31 @@ ALLOWED TOPICS:
 - turizem
 - gastronomija
 - drugo
+
+ALLOWED SUBTOPICS:
+- poplave, pozari, potresi, neurja, suse, plazovi
+- prometne_nesrece, eksplozije, tehnicne_okvare, delovne_nesrece, resevanje, nesrece_v_naravi
+- volitve, vlada, diplomacija, zakonodaja, protesti
+- napadi, vojaske_operacije, mirovna_pogajanja, begunci
+- nasilna_dejanja, financni_kriminal, preiskave, sodni_postopki, kibernetski_kriminal
+- nogomet, kosarka, zimski_sporti, avtomoto_sport, tenis, kolesarstvo, rokomet, odbojka
+- umetna_inteligenca, vesolje, kibernetska_varnost, programska_oprema, naprave, znanost_in_raziskave
+- podjetja, cene_in_inflacija, energetika, trgi_in_finance, zaposlovanje
+- javno_zdravje, bolezni, zdravstvo, zdravljenje_in_raziskave
+- podnebne_spremembe, onesnazevanje, varovanje_narave, energetski_prehod
+- film, glasba, knjizevnost, gledalisce, vizualna_umetnost, kulturna_dediscina
+- znani, televizija, koncerti_in_prireditve
+- destinacije, nastanitve, potovanja
+- recepti, restavracije, hrana_in_pijaca
+- drugo
+
+Subtopic rules:
+- Choose exactly one subtopic from the allowed subtopics list.
+- The subtopic must describe the main event and fit under the chosen topic.
+- Use drugo when no listed subtopic clearly fits. Do not invent a new subtopic.
+- Floods belong under naravne_nesrece with subtopic poplave.
+- Fires belong under naravne_nesrece when they are wildfires or weather-related, otherwise under nesrece_in_incidenti with subtopic pozari.
+- Train crashes, car crashes and similar transport accidents belong under nesrece_in_incidenti with subtopic prometne_nesrece.
 
 
 Topic rules:
@@ -247,6 +345,7 @@ Do not add extra fields.
 Output format:
 {
 	"topic": "...",
+	"subtopic": "...",
 	"country": "...",
 	"city": "..."
 }
@@ -264,6 +363,7 @@ Najhuje je bilo v okolici Linza, kjer so reke prestopile bregove.
 Output:
 {
 	"topic": "naravne_nesrece",
+	"subtopic": "poplave",
 	"country": "Avstrija",
 	"city": "Linz"
 }
@@ -279,6 +379,7 @@ O napadu so razpravljali tudi predstavniki Evropske unije in ZDA.
 Output:
 {
 	"topic": "vojna_in_konflikti",
+	"subtopic": "napadi",
 	"country": "Ukrajina",
 	"city": "Kijev"
 }
@@ -294,6 +395,7 @@ Analitiki opozarjajo, da razmere še niso povsem stabilne.
 Output:
 {
 	"topic": "gospodarstvo",
+	"subtopic": "cene_in_inflacija",
 	"country": null,
 	"city": null
 }
@@ -302,7 +404,7 @@ VERY IMPORTANT: Be careful about these mistakes you often make:  Do not invent t
 Topics you most frequently invent are "nauka" or "nauk" - use "drugo" instead, "koncerti" - use "zabava" instead, "moda" - use "kultura" instead, you often make a typo "gospodstvo" instead of gospodarstvo.
 `,
 
-    prompt: `Extract the main topic, country and place from this Slovenian MMC article. Return only the required JSON object.\n\n${article.text}.`,
+    prompt: `Extract the main topic, subtopic, country and place from this Slovenian MMC article. Return only the required JSON object.\n\n${article.text}.`,
     temperature: 0.1,
   });
 
@@ -419,6 +521,7 @@ async function run_extraction() {
         const saved: SavedExtraction = {
           _id: article._id,
           topic: extracted.topic,
+          subtopic: extracted.subtopic,
           country: extracted.country,
           city: extracted.city,
         };

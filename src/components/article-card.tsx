@@ -8,16 +8,19 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { useMmcArticles } from "@/lib/mmc-data";
+import { getSubtopicStyle } from "@/lib/subtopics";
 import { getTopicStyle } from "@/lib/topic-colors";
 
 export default function ArticleCard({
   id,
   articlePath = "/mmc-lean.v6.json",
   onClose,
+  showSubtopics = true,
 }: {
   id: string | null;
   articlePath?: string;
   onClose?: () => void;
+  showSubtopics?: boolean;
 }) {
   const { data } = useMmcArticles(articlePath);
   const article = useMemo(() => {
@@ -44,6 +47,7 @@ export default function ArticleCard({
   }
 
   const topicStyle = getTopicStyle(article?.["llm-topic"]);
+  const subtopicStyle = getSubtopicStyle(article?.["llm-subtopic"]);
 
   return (
     <Card className="absolute top-4 right-4 z-20 h-[90vh] w-96 border shadow-lg">
@@ -83,6 +87,15 @@ export default function ArticleCard({
                   variant="secondary"
                 >
                   {topicStyle.label}
+                </Badge>
+              )}
+              {showSubtopics && article["llm-subtopic"] && (
+                <Badge
+                  className="uppercase tracking-wide"
+                  style={{ color: subtopicStyle.textColor }}
+                  variant="outline"
+                >
+                  {subtopicStyle.label}
                 </Badge>
               )}
               {article.date && (

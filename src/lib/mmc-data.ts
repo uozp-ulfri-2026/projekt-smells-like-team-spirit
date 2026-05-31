@@ -1,9 +1,11 @@
 import { useQuery } from "@tanstack/react-query";
+import { getArticleSubtopic } from "@/lib/subtopics";
 
 export interface LeanArticle {
   _id: string;
   date?: string;
   lead?: string;
+  "llm-subtopic"?: string;
   "llm-topic"?: string;
   title?: string;
   url?: string;
@@ -88,9 +90,13 @@ export function buildArticlesData(rows: LeanArticle[]): ArticlesData {
       continue;
     }
 
-    byId[article._id] = {
+    const enrichedArticle = {
       ...article,
       "llm-topic": canonicalizeTopic(article["llm-topic"]),
+    };
+    byId[article._id] = {
+      ...enrichedArticle,
+      "llm-subtopic": getArticleSubtopic(enrichedArticle),
     };
 
     const time = parseArticleTime(article);

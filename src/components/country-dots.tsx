@@ -15,10 +15,12 @@ import {
 import type { CountryData } from "@/components/clickable-countries";
 import { useMap } from "@/components/map";
 import { getCityCoordinateOverride } from "@/lib/city-coordinate-overrides";
+import { DEFAULT_SUBTOPIC, getSubtopicStyle } from "@/lib/subtopics";
 import { getTopicStyle } from "@/lib/topic-colors";
 
 interface LeanArticle {
   _id: string;
+  "llm-subtopic"?: string;
   "llm-topic"?: string;
 }
 
@@ -39,6 +41,7 @@ interface CountryDotsProps {
   articlesById: Record<string, LeanArticle>;
   country: CountryData | null;
   data: GeoJSON.FeatureCollection<GeoJSON.Point, DotProperties>;
+  groupBySubtopic?: boolean;
   onDotClick?: (ids: string[]) => void;
   selectedArticleId: string | null;
   showAllCountries?: boolean;
@@ -216,6 +219,7 @@ export function CountryDots({
   country,
   data,
   articlesById,
+  groupBySubtopic = false,
   selectedArticleId,
   onDotClick,
   showAllCountries = false,
@@ -287,8 +291,10 @@ export function CountryDots({
       const groupedIdsByTopic = new Map<string, string[]>();
 
       for (const articleId of ids) {
-        const primaryTopic =
-          articlesById[articleId]?.["llm-topic"] || "Brez teme";
+        const article = articlesById[articleId];
+        const primaryTopic = groupBySubtopic
+          ? article?.["llm-subtopic"] || DEFAULT_SUBTOPIC
+          : article?.["llm-topic"] || "Brez teme";
         const topicIds = groupedIdsByTopic.get(primaryTopic);
         if (topicIds) {
           topicIds.push(articleId);
@@ -309,7 +315,9 @@ export function CountryDots({
           selectedArticleId && topicIds.includes(selectedArticleId)
             ? selectedArticleId
             : topicIds[0];
-        const topicColor = getTopicStyle(primaryTopic).color;
+        const topicColor = groupBySubtopic
+          ? getSubtopicStyle(primaryTopic).color
+          : getTopicStyle(primaryTopic).color;
         const baseCoordinates = getFeatureCoordinates(
           feature,
           labelAnchorsByKey
@@ -356,6 +364,7 @@ export function CountryDots({
     active_country_name,
     articlesById,
     data,
+    groupBySubtopic,
     labelAnchorsByKey,
     selectedArticleId,
     should_show_dots,

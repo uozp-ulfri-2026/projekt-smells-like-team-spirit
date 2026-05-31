@@ -5,6 +5,7 @@ import type { CountryData } from "@/components/clickable-countries";
 import { ClickableCountries } from "@/components/clickable-countries";
 import { CountryDots } from "@/components/country-dots";
 import Explorator from "@/components/explorator";
+import type { SubtopicOption } from "@/components/subtopic-filter";
 import { TimelineSlider } from "@/components/timeline-slider";
 import { Button } from "@/components/ui/button";
 import {
@@ -33,6 +34,7 @@ import {
   useMmcArticles,
   useMmcGeoJson,
 } from "@/lib/mmc-data";
+import { DEFAULT_SUBTOPIC } from "@/lib/subtopics";
 import { getTopicStyle } from "@/lib/topic-colors";
 import { Map as MapComponent, MapControls } from "./components/map";
 import { Card } from "./components/ui/card";
@@ -229,6 +231,8 @@ function PageToolbar({
   onColorModeChange,
   showCountryThemeStats,
   onShowCountryThemeStatsChange,
+  showSubtopics,
+  onShowSubtopicsChange,
   showTimeSlider,
   onShowTimeSliderChange,
 }: {
@@ -238,6 +242,8 @@ function PageToolbar({
   onColorModeChange: (mode: ColorMode) => void;
   showCountryThemeStats: boolean;
   onShowCountryThemeStatsChange: (checked: boolean) => void;
+  showSubtopics: boolean;
+  onShowSubtopicsChange: (checked: boolean) => void;
   showTimeSlider: boolean;
   onShowTimeSliderChange: (checked: boolean) => void;
 }) {
@@ -318,8 +324,13 @@ function PageToolbar({
             </div>
             <SettingSwitch
               checked={showCountryThemeStats}
-              label="Prikaži deleže tem po državah"
+              label="Prikaži statistiko tem"
               onCheckedChange={onShowCountryThemeStatsChange}
+            />
+            <SettingSwitch
+              checked={showSubtopics}
+              label="Prikaži podteme"
+              onCheckedChange={onShowSubtopicsChange}
             />
             <SettingSwitch
               checked={showTimeSlider}
@@ -366,6 +377,7 @@ export function MyMap() {
     null
   );
   const [selectedTopic, setSelectedTopic] = useState("all");
+  const [selectedSubtopics, setSelectedSubtopics] = useState<string[]>([]);
   const [countryFilterMode, setCountryFilterMode] =
     useState<CountryFilterMode>("exclude");
   const [selectedCountryFilters, setSelectedCountryFilters] = useState<
@@ -375,6 +387,7 @@ export function MyMap() {
     useState<MapDisplayMode>("heatmap");
   const [colorMode, setColorMode] = useState<ColorMode>(getInitialColorMode);
   const [showCountryThemeStats, setShowCountryThemeStats] = useState(true);
+  const [showSubtopics, setShowSubtopics] = useState(true);
   const [showTimeSlider, setShowTimeSlider] = useState(true);
   const [isTimelinePlaying, setIsTimelinePlaying] = useState(false);
   const timelineRangeRef = useRef<[number, number] | null>(timelineRange);
@@ -530,6 +543,18 @@ export function MyMap() {
     [articlesById, selectedTopic]
   );
 
+  const articleMatchesSelectedSubtopics = useCallback(
+    (id: string) => {
+      if (selectedSubtopics.length === 0) {
+        return true;
+      }
+
+      const subtopic = articlesById[id]?.["llm-subtopic"] || DEFAULT_SUBTOPIC;
+      return selectedSubtopics.includes(subtopic);
+    },
+    [articlesById, selectedSubtopics]
+  );
+
   const filteredGeoJson = useMemo<CityFeatureCollection>(() => {
     if (!(baseGeoJson && normalizedTimelineRange)) {
       return EMPTY_GEOJSON;
@@ -543,7 +568,6 @@ export function MyMap() {
       if (typeof country === "string" && !countryMatchesFilter(country)) {
         continue;
       }
-
       const ids = Array.isArray(feature.properties?.ids)
         ? feature.properties.ids
         : [];
@@ -576,8 +600,57 @@ export function MyMap() {
     normalizedTimelineRange,
   ]);
 
-  const topicFilteredGeoJson = useMemo<CityFeatureCollection>(() => {
+  const availableSubtopics = useMemo<SubtopicOption[]>(() => {
     if (selectedTopic === "all") {
+      return [];
+    }
+
+    const seenIds = new Set<string>();
+    const counts = new Map<string, number>();
+
+    for (const feature of filteredGeoJson.features) {
+      for (const id of feature.properties?.ids ?? []) {
+        if (seenIds.has(id) || !articleMatchesSelectedTopic(id)) {
+          continue;
+        }
+
+        seenIds.add(id);
+        const subtopic = articlesById[id]?.["llm-subtopic"] || DEFAULT_SUBTOPIC;
+        counts.set(subtopic, (counts.get(subtopic) ?? 0) + 1);
+      }
+    }
+
+    return Array.from(counts, ([subtopic, count]) => ({
+      subtopic,
+      count,
+    })).sort(
+      (left, right) =>
+        right.count - left.count ||
+        left.subtopic.localeCompare(right.subtopic, "sl")
+    );
+  }, [
+    articleMatchesSelectedTopic,
+    articlesById,
+    filteredGeoJson.features,
+    selectedTopic,
+  ]);
+
+  useEffect(() => {
+    const available = new Set(
+      availableSubtopics.map(({ subtopic }) => subtopic)
+    );
+    setSelectedSubtopics((currentSubtopics) => {
+      const nextSubtopics = currentSubtopics.filter((subtopic) =>
+        available.has(subtopic)
+      );
+      return nextSubtopics.length === currentSubtopics.length
+        ? currentSubtopics
+        : nextSubtopics;
+    });
+  }, [availableSubtopics]);
+
+  const topicFilteredGeoJson = useMemo<CityFeatureCollection>(() => {
+    if (selectedTopic === "all" && selectedSubtopics.length === 0) {
       return filteredGeoJson;
     }
 
@@ -587,7 +660,10 @@ export function MyMap() {
       const ids = Array.isArray(feature.properties?.ids)
         ? feature.properties.ids
         : [];
-      const filteredIds = ids.filter(articleMatchesSelectedTopic);
+      const filteredIds = ids.filter(
+        (id) =>
+          articleMatchesSelectedTopic(id) && articleMatchesSelectedSubtopics(id)
+      );
 
       if (filteredIds.length === 0) {
         continue;
@@ -606,7 +682,13 @@ export function MyMap() {
       ...filteredGeoJson,
       features,
     };
-  }, [articleMatchesSelectedTopic, filteredGeoJson, selectedTopic]);
+  }, [
+    articleMatchesSelectedSubtopics,
+    articleMatchesSelectedTopic,
+    filteredGeoJson,
+    selectedSubtopics.length,
+    selectedTopic,
+  ]);
 
   const timelineArticleCount = useMemo(() => {
     if (!(baseGeoJson && timelineRange && timelineBounds)) {
@@ -629,6 +711,12 @@ export function MyMap() {
       if (typeof country === "string" && !countryMatchesFilter(country)) {
         continue;
       }
+      if (
+        selectedCountry &&
+        country?.toLowerCase() !== selectedCountry.name.toLowerCase()
+      ) {
+        continue;
+      }
 
       const ids = Array.isArray(feature.properties?.ids)
         ? feature.properties.ids
@@ -640,7 +728,8 @@ export function MyMap() {
           time !== undefined &&
           time >= start &&
           time <= end &&
-          articleMatchesSelectedTopic(id)
+          articleMatchesSelectedTopic(id) &&
+          articleMatchesSelectedSubtopics(id)
         ) {
           visibleIds.add(id);
         }
@@ -649,10 +738,12 @@ export function MyMap() {
 
     return visibleIds.size;
   }, [
+    articleMatchesSelectedSubtopics,
     articleMatchesSelectedTopic,
     articleTimeById,
     baseGeoJson,
     countryMatchesFilter,
+    selectedCountry,
     timelineBounds,
     timelineRange,
   ]);
@@ -753,6 +844,18 @@ export function MyMap() {
     setSelectedDotArticleIds([]);
   }, []);
 
+  const handleSelectedTopicChange = useCallback((topic: string) => {
+    setSelectedTopic(topic);
+    setSelectedSubtopics([]);
+  }, []);
+
+  const handleShowSubtopicsChange = useCallback((checked: boolean) => {
+    setShowSubtopics(checked);
+    if (!checked) {
+      setSelectedSubtopics([]);
+    }
+  }, []);
+
   const handleTimelineRangeChange = useCallback((value: [number, number]) => {
     setIsTimelinePlaying(false);
     setTimelineRange(value);
@@ -834,14 +937,17 @@ export function MyMap() {
         onColorModeChange={setColorMode}
         onModeChange={handleMapDisplayModeChange}
         onShowCountryThemeStatsChange={setShowCountryThemeStats}
+        onShowSubtopicsChange={handleShowSubtopicsChange}
         onShowTimeSliderChange={setShowTimeSlider}
         showCountryThemeStats={showCountryThemeStats}
+        showSubtopics={showSubtopics}
         showTimeSlider={showTimeSlider}
       />
 
       <Explorator
         articlesById={articlesById}
         availableCountries={availableCountries}
+        availableSubtopics={availableSubtopics}
         country={selectedCountry}
         countryFilterMode={countryFilterMode}
         geoJson={filteredGeoJson}
@@ -849,12 +955,15 @@ export function MyMap() {
         onCountryFilterModeChange={setCountryFilterMode}
         onSelectArticle={handleArticleSelect}
         onSelectedCountryFiltersChange={setSelectedCountryFilters}
-        onSelectedTopicChange={setSelectedTopic}
+        onSelectedSubtopicsChange={setSelectedSubtopics}
+        onSelectedTopicChange={handleSelectedTopicChange}
         selectedArticleId={selectedArticleId}
         selectedCountryFilters={selectedCountryFilters}
         selectedDotArticleIds={selectedDotArticleIds}
+        selectedSubtopics={selectedSubtopics}
         selectedTopic={selectedTopic}
         showCountryThemeStats={showCountryThemeStats}
+        showSubtopics={showSubtopics}
       />
 
       <div className="flex min-h-0 flex-1 flex-col gap-3">
@@ -900,6 +1009,7 @@ export function MyMap() {
               articlesById={articlesById}
               country={selectedCountry}
               data={topicFilteredGeoJson}
+              groupBySubtopic={showSubtopics && selectedTopic !== "all"}
               onDotClick={handleDotClick}
               selectedArticleId={selectedArticleId}
               showAllCountries={mapDisplayMode === "dots"}
@@ -910,6 +1020,7 @@ export function MyMap() {
             articlePath={dataset.articlePath}
             id={selectedArticleId}
             onClose={() => setSelectedArticleId(null)}
+            showSubtopics={showSubtopics}
           />
         </Card>
 

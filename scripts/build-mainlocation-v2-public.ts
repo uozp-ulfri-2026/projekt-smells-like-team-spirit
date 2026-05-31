@@ -7,6 +7,7 @@ interface SourceArticle {
   lead?: unknown;
   llm?: {
     topic?: unknown;
+    subtopic?: unknown;
     country?: unknown;
     city?: unknown;
   };
@@ -15,6 +16,8 @@ interface SourceArticle {
     city?: unknown;
   };
   theme_model?: {
+    subtheme?: unknown;
+    subtopic?: unknown;
     theme?: unknown;
   };
   title?: unknown;
@@ -25,6 +28,7 @@ interface LeanArticle {
   _id: string;
   date?: string;
   lead?: string;
+  "llm-subtopic"?: string;
   "llm-topic"?: string;
   title?: string;
   url?: string;
@@ -200,6 +204,11 @@ function buildLeanArticles(rows: SourceArticle[]): LeanArticle[] {
       _id,
       url: asOptionalString(row.url),
       date: asOptionalString(row.date),
+      "llm-subtopic": asOptionalString(
+        row.theme_model?.subtheme ??
+          row.theme_model?.subtopic ??
+          row.llm?.subtopic
+      ),
       "llm-topic": mapTopicToSlovenian(
         row.theme_model?.theme ?? row.llm?.topic
       ),

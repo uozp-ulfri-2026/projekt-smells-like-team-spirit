@@ -5,6 +5,7 @@ interface FullArticle {
   date?: unknown;
   lead?: unknown;
   llm?: {
+    subtopic?: unknown;
     topic?: unknown;
   };
   title?: unknown;
@@ -15,6 +16,7 @@ interface LeanArticle {
   _id: string;
   date?: string;
   lead?: string;
+  "llm-subtopic"?: string;
   "llm-topic"?: string;
   title?: string;
   url?: string;
@@ -100,6 +102,7 @@ async function main() {
       _id,
       url: asOptionalString(row?.url),
       date: asOptionalString(row?.date),
+      "llm-subtopic": asOptionalString(row?.llm?.subtopic),
       "llm-topic": mapTopicToSlovenian(row?.llm?.topic),
       title: asOptionalString(row?.title),
       lead: asOptionalString(row?.lead),

@@ -4,6 +4,10 @@ import React, { useEffect, useMemo, useState } from "react";
 import type { CountryData } from "@/components/clickable-countries";
 import { CountryFilter } from "@/components/country-filter";
 import { CountryTopicBreakdown } from "@/components/country-topic-breakdown";
+import {
+  SubtopicFilter,
+  type SubtopicOption,
+} from "@/components/subtopic-filter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -31,6 +35,7 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import type { CountryFilterMode } from "@/lib/country-filter";
+import { DEFAULT_SUBTOPIC, getSubtopicStyle } from "@/lib/subtopics";
 import { getTopicStyle, hexToRgba } from "@/lib/topic-colors";
 
 interface CityFeature {
@@ -43,6 +48,7 @@ interface LeanArticle {
   _id: string;
   date?: string;
   lead?: string;
+  "llm-subtopic"?: string;
   "llm-topic"?: string;
   title?: string;
   url?: string;
@@ -52,11 +58,32 @@ interface SearchRow {
   city: string;
   country: string;
   id: string;
+  subtopic: string;
   title: string;
   topic: string;
 }
 
 const PAGE_SIZE = 10;
+
+function getSearchRowStyle(
+  row: SearchRow,
+  selectedTopic: string,
+  showSubtopics: boolean
+) {
+  return selectedTopic === "all" || !showSubtopics
+    ? getTopicStyle(row.topic)
+    : getSubtopicStyle(row.subtopic);
+}
+
+function getSearchRowClassificationLabel(
+  row: SearchRow,
+  selectedTopic: string,
+  showSubtopics: boolean
+): string {
+  return selectedTopic === "all" || !showSubtopics
+    ? getTopicStyle(row.topic).label
+    : getSubtopicStyle(row.subtopic).label;
+}
 
 export default function Explorator({
   country,
@@ -64,6 +91,7 @@ export default function Explorator({
   geoJson,
   articlesById,
   availableCountries,
+  availableSubtopics,
   selectedArticleId,
   selectedDotArticleIds,
   selectedTopic,
@@ -72,8 +100,11 @@ export default function Explorator({
   onClearSelectedDot,
   onCountryFilterModeChange,
   onSelectedCountryFiltersChange,
+  onSelectedSubtopicsChange,
   showCountryThemeStats,
+  showSubtopics,
   selectedCountryFilters,
+  selectedSubtopics,
 }: {
   country: CountryData | null;
   countryFilterMode: CountryFilterMode;
@@ -83,6 +114,7 @@ export default function Explorator({
   >;
   articlesById: Record<string, LeanArticle>;
   availableCountries: string[];
+  availableSubtopics: SubtopicOption[];
   selectedArticleId: string | null;
   selectedDotArticleIds: string[];
   selectedTopic: string;
@@ -91,8 +123,11 @@ export default function Explorator({
   onClearSelectedDot: () => void;
   onCountryFilterModeChange: (mode: CountryFilterMode) => void;
   onSelectedCountryFiltersChange: (countries: string[]) => void;
+  onSelectedSubtopicsChange: (subtopics: string[]) => void;
   showCountryThemeStats: boolean;
+  showSubtopics: boolean;
   selectedCountryFilters: string[];
+  selectedSubtopics: string[];
 }) {
   const { open } = useSidebar();
   const [searchQuery, setSearchQuery] = useState("");
@@ -142,6 +177,7 @@ export default function Explorator({
 
         out.push({
           id,
+          subtopic: article["llm-subtopic"] || DEFAULT_SUBTOPIC,
           title: article.title?.trim() || id,
           topic: article["llm-topic"] || "Brez teme",
           city: feature.city,
@@ -195,10 +231,13 @@ export default function Explorator({
         const cityMatch = q.length === 0 || row.city.toLowerCase().includes(q);
         const topicMatch =
           selectedTopic === "all" || row.topic === selectedTopic;
-        return cityMatch && topicMatch;
+        const subtopicMatch =
+          selectedSubtopics.length === 0 ||
+          selectedSubtopics.includes(row.subtopic);
+        return cityMatch && topicMatch && subtopicMatch;
       })
       .sort((a, b) => a.title.localeCompare(b.title, "sl"));
-  }, [rows, searchQuery, selectedDotRows, selectedTopic]);
+  }, [rows, searchQuery, selectedDotRows, selectedSubtopics, selectedTopic]);
 
   const totalPages = Math.max(1, Math.ceil(filteredRows.length / PAGE_SIZE));
 
@@ -277,13 +316,24 @@ export default function Explorator({
               })}
             </SelectContent>
           </Select>
-          <CountryFilter
-            countries={availableCountries}
-            mode={countryFilterMode}
-            onModeChange={onCountryFilterModeChange}
-            onSelectedCountriesChange={onSelectedCountryFiltersChange}
-            selectedCountries={selectedCountryFilters}
-          />
+          {showSubtopics &&
+            selectedTopic !== "all" &&
+            availableSubtopics.length > 0 && (
+              <SubtopicFilter
+                onSelectedSubtopicsChange={onSelectedSubtopicsChange}
+                options={availableSubtopics}
+                selectedSubtopics={selectedSubtopics}
+              />
+            )}
+          {!country && (
+            <CountryFilter
+              countries={availableCountries}
+              mode={countryFilterMode}
+              onModeChange={onCountryFilterModeChange}
+              onSelectedCountriesChange={onSelectedCountryFiltersChange}
+              selectedCountries={selectedCountryFilters}
+            />
+          )}
         </SidebarHeader>
 
         <SidebarContent>
@@ -306,8 +356,12 @@ export default function Explorator({
                   </Button>
                 </div>
                 <p className="mt-1 truncate text-muted-foreground">
-                  {getTopicStyle(selectedDotRows[0].topic).label} -{" "}
-                  {selectedDotRows[0].city}
+                  {getSearchRowClassificationLabel(
+                    selectedDotRows[0],
+                    selectedTopic,
+                    showSubtopics
+                  )}{" "}
+                  - {selectedDotRows[0].city}
                 </p>
               </div>
             )}
@@ -318,7 +372,11 @@ export default function Explorator({
               </div>
             ) : (
               pagedRows.map((row) => {
-                const topicStyle = getTopicStyle(row.topic);
+                const markerStyle = getSearchRowStyle(
+                  row,
+                  selectedTopic,
+                  showSubtopics
+                );
                 const isSelected = row.id === selectedArticleId;
 
                 return (
@@ -329,18 +387,18 @@ export default function Explorator({
                       onSelectArticle({ country: row.country, id: row.id })
                     }
                     style={{
-                      borderLeftColor: topicStyle.color,
+                      borderLeftColor: markerStyle.color,
                       borderTopColor: isSelected
-                        ? hexToRgba(topicStyle.color, 0.55)
+                        ? hexToRgba(markerStyle.color, 0.55)
                         : "transparent",
                       borderRightColor: isSelected
-                        ? hexToRgba(topicStyle.color, 0.55)
+                        ? hexToRgba(markerStyle.color, 0.55)
                         : "transparent",
                       borderBottomColor: isSelected
-                        ? hexToRgba(topicStyle.color, 0.55)
+                        ? hexToRgba(markerStyle.color, 0.55)
                         : "transparent",
                       backgroundColor: hexToRgba(
-                        topicStyle.color,
+                        markerStyle.color,
                         isSelected ? 0.22 : 0.08
                       ),
                     }}
@@ -350,9 +408,9 @@ export default function Explorator({
                       aria-hidden="true"
                       className="mt-0.5 size-2.5 shrink-0 rounded-full"
                       style={{
-                        backgroundColor: topicStyle.color,
+                        backgroundColor: markerStyle.color,
                         boxShadow: isSelected
-                          ? `0 0 0 4px ${hexToRgba(topicStyle.color, 0.22)}`
+                          ? `0 0 0 4px ${hexToRgba(markerStyle.color, 0.22)}`
                           : undefined,
                       }}
                     />
@@ -362,9 +420,14 @@ export default function Explorator({
                       </p>
                       <p
                         className="truncate text-[11px]"
-                        style={{ color: topicStyle.textColor }}
+                        style={{ color: markerStyle.textColor }}
                       >
-                        {getTopicStyle(row.topic).label} - {row.city}
+                        {getSearchRowClassificationLabel(
+                          row,
+                          selectedTopic,
+                          showSubtopics
+                        )}{" "}
+                        - {row.city}
                       </p>
                     </div>
                   </button>
@@ -444,12 +507,14 @@ export default function Explorator({
           </div>
         </SidebarContent>
 
-        {country && showCountryThemeStats && (
+        {showCountryThemeStats && (
           <SidebarFooter className="border-t">
             <CountryTopicBreakdown
               articlesById={articlesById}
               country={country}
               geoJson={geoJson}
+              selectedTopic={selectedTopic}
+              showSubtopics={showSubtopics}
             />
           </SidebarFooter>
         )}
