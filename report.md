@@ -28,7 +28,13 @@ Verzija 1:
 
 Verzija 6 (trenutni pristop):
 
-- `todo TJAS`
+- V verziji 6 smo LLM nadomestili s kombinacijo slovarja krajev, točkovanja kandidatov in pravil. Slovar vsebuje mesta iz zbirke GeoNames, obstoječih koordinat ter ročno pripravljenih podatkov. Upošteva tudi nekatere slovenske sklanjatve imen krajev, na primer `Denver`, `Denverju` in `Denverjem`.
+
+- Sistem pregleda naslov, povzetek, ključne besede, opise slik, URL in odstavke članka. Posamezna polja imajo različne uteži: omemba kraja v naslovu ali povzetku je pomembnejša od omembe v običajnem odstavku. Kandidati dobijo dodatne točke, če se v članku pojavi tudi država ali če je kraj naveden v lokacijskem kontekstu, na primer za besedami `v`, `na`, `iz` ali `pri`.
+
+- Če je več krajev ocenjenih podobno, sistem označi rezultat kot dvoumen in zahteva močnejše dokaze. Če zanesljivega kraja ni mogoče določiti, uporabi previdne rezervne strategije. Med njimi so šibkejši, vendar še vedno podprti kandidati in porazdelitev člankov med že znane kraje znotraj države. Takšni približni rezultati imajo nižjo stopnjo zaupanja.
+
+- Tematske kategorije določimo ločeno s pomočjo izvorne kategorije članka in uteženih ključnih besed. Končni podatki se izvozijo v obliki JSON in GeoJSON, ki ju uporablja spletna aplikacija.
 
 ### 3.1 Razširitev s podtemami
 
@@ -68,9 +74,14 @@ Za evalvacijo LLM izhodov smo uporabili ročno označeno eval množico (n = 90).
 
 ### Primerjava in interpretacija
 
-`todo TJAS` - ker ves kaj je v6 delal
+Verzija 1 z uporabo LLM dosega dosti višjo natančnost, saj lahko model bolje razume širši pomen članka in presodi, kateri kraj je za zgodbo dejansko najpomembnejši. Verzija 6 uporablja hitrejši in bolj ponovljiv pristop, vendar temelji predvsem na prisotnosti imen krajev, uteženih poljih in kontekstnih pravilih. Zato težje loči med glavnim krajem dogodka in krajem, ki je v članku omenjen le posredno.
 
-- tuki je treba mal zagovarjat da je llm najbolsi za to kar smo mi zelel narest
+Prednost verzije 6 je večja pokritost podatkov. Pri verziji 1 smo zaradi manjkajočih ali neveljavnih kombinacij država-kraj izgubili približno polovico člankov, medtem ko jih pri verziji 6 izgubimo le približno 15 %. Del dodatne pokritosti dobimo z rezervnimi strategijami, kar pojasni nižji exact-match pri mestih.
+
+
+
+Za naš namen je LLM načeloma primernejši, ker nas ne zanima le omemba kraja, temveč glavna lokacija članka. Najboljša nadaljnja rešitev bi bil hibridni pristop: zmogljivejši LLM bi določil glavno lokacijo, slovar krajev in GeoNames pa bi rezultat preverila, popravila zapise imen ter zavrnila neveljavne kombinacije država-kraj.
+
 
 ## 5. Primeri odkrivanja znanj iz vizualizacij
 
