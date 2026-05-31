@@ -55,7 +55,7 @@ export default function ArticleCard({
         />
       )}
       <Button
-        aria-label="Close article"
+        aria-label="Zapri članek"
         className="absolute top-2 left-2 z-30"
         onClick={onClose}
         size="icon"
@@ -67,14 +67,14 @@ export default function ArticleCard({
       <ScrollArea className="flex-1">
         {!article && (
           <CardContent className="pt-4 text-muted-foreground text-sm">
-            Loading article...
+            Nalaganje članka ...
           </CardContent>
         )}
         {article && (
           <>
             <CardHeader className="pt-8">
               <CardTitle className="text-base leading-tight">
-                {article.title?.trim() || "Untitled"}
+                {article.title?.trim() || "Brez naslova"}
               </CardTitle>
               {article["llm-topic"] && (
                 <Badge
@@ -82,12 +82,12 @@ export default function ArticleCard({
                   style={{ color: topicStyle.textColor }}
                   variant="secondary"
                 >
-                  {article["llm-topic"]}
+                  {topicStyle.label}
                 </Badge>
               )}
               {article.date && (
                 <p className="text-muted-foreground text-xs">
-                  {new Date(article.date).toLocaleDateString()}
+                  {new Date(article.date).toLocaleDateString("sl-SI")}
                 </p>
               )}
             </CardHeader>
@@ -101,7 +101,7 @@ export default function ArticleCard({
                   style={{ color: topicStyle.textColor }}
                   target="_blank"
                 >
-                  Preberi originalni clanek
+                  Preberi izvirni članek
                 </a>
               )}
               <Separator />

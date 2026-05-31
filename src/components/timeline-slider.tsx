@@ -29,14 +29,16 @@ export function TimelineSlider({
   onValueChange,
 }: TimelineSliderProps) {
   return (
-    <div className="fixed right-8 bottom-8 left-8 z-1000 border bg-background/95 px-4 py-3 shadow-md backdrop-blur">
+    <div className="shrink-0 border bg-background/95 px-4 py-3 shadow-md backdrop-blur">
       <div className="mb-2 flex flex-wrap items-center justify-between gap-3 text-muted-foreground text-xs">
         <div className="flex items-center gap-2">
           <button
-            aria-label={isPlaying ? "Pause timeline" : "Play timeline"}
+            aria-label={
+              isPlaying ? "Zaustavi časovnico" : "Predvajaj časovnico"
+            }
             className="inline-flex size-8 items-center justify-center rounded-md border bg-background text-foreground shadow-xs transition hover:bg-accent"
             onClick={onPlayPause}
-            title={isPlaying ? "Pause timeline" : "Play timeline"}
+            title={isPlaying ? "Zaustavi časovnico" : "Predvajaj časovnico"}
             type="button"
           >
             {isPlaying ? (
@@ -46,16 +48,16 @@ export function TimelineSlider({
             )}
           </button>
           <button
-            aria-label="Restart timeline playback"
+            aria-label="Ponovno predvajaj časovnico"
             className="inline-flex size-8 items-center justify-center rounded-md border bg-background text-foreground shadow-xs transition hover:bg-accent"
             onClick={onRestart}
-            title="Restart timeline playback"
+            title="Ponovno predvajaj časovnico"
             type="button"
           >
             <RotateCcw className="size-4" />
           </button>
           <span className="hidden sm:inline">
-            {isPlaying ? "Predvajanje casovnice" : "Casovnica"}
+            {isPlaying ? "Predvajanje časovnice" : "Časovnica"}
           </span>
         </div>
 

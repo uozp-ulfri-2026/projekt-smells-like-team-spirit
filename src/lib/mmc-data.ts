@@ -45,6 +45,21 @@ const STATIC_QUERY_OPTIONS = {
   staleTime: Number.POSITIVE_INFINITY,
 } as const;
 
+function canonicalizeTopic(topic: string | undefined): string | undefined {
+  if (!topic) {
+    return topic;
+  }
+
+  const normalizedTopic = topic
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toUpperCase();
+
+  return normalizedTopic === "PROMETNE NESRECE"
+    ? "NESRE\u010cE IN INCIDENTI"
+    : topic;
+}
+
 export async function fetchJson<T>(path: string): Promise<T> {
   const response = await fetch(path);
 
@@ -73,7 +88,10 @@ export function buildArticlesData(rows: LeanArticle[]): ArticlesData {
       continue;
     }
 
-    byId[article._id] = article;
+    byId[article._id] = {
+      ...article,
+      "llm-topic": canonicalizeTopic(article["llm-topic"]),
+    };
 
     const time = parseArticleTime(article);
     if (time !== null) {

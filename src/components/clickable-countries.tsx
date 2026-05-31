@@ -3,11 +3,17 @@ import {
   type GeoJSONSource,
   LngLatBounds,
   type MapGeoJSONFeature,
+  type Map as MapLibreMap,
   type MapMouseEvent,
 } from "maplibre-gl";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useMap } from "@/components/map";
 import { buildCountryArticleColorExpression } from "@/lib/country-article-scale";
+import {
+  buildNormalizedCountrySet,
+  type CountryFilterMode,
+  matchesCountryFilter,
+} from "@/lib/country-filter";
 import { getArticleCountryName } from "@/lib/country-names";
 
 export interface CountryData {
@@ -28,10 +34,17 @@ type CountriesFeatureCollection = GeoJSON.FeatureCollection<
 
 interface ClickableCountriesProps {
   countryArticleCounts?: Record<string, number>;
+  countryFilterMode?: CountryFilterMode;
+  maxCountryArticleCount?: number;
   onCountryClick?: (country: CountryData) => void;
   selectedCountry?: CountryData | null;
+  selectedCountryFilters?: string[];
   showChoropleth?: boolean;
 }
+
+type MapEventWithFeatures = MapMouseEvent & {
+  features?: MapGeoJSONFeature[];
+};
 
 const source_id = "countries-source";
 const layer_id = "countries-fill";
@@ -47,8 +60,8 @@ const empty_countries_geojson: CountriesFeatureCollection = {
   features: [],
 };
 
-const choropleth_fill_color = [
-  ...buildCountryArticleColorExpression(),
+const default_choropleth_fill_color = [
+  ...buildCountryArticleColorExpression(0),
 ] as ExpressionSpecification;
 
 const choropleth_fill_opacity = [
@@ -208,58 +221,112 @@ function extendBoundsWithPosition(
   return bounds;
 }
 
+function extendBoundsWithCoordinates(
+  bounds: LngLatBounds | null,
+  coordinates: unknown
+): LngLatBounds | null {
+  if (!Array.isArray(coordinates)) {
+    return bounds;
+  }
+
+  if (
+    coordinates.length >= 2 &&
+    typeof coordinates[0] === "number" &&
+    typeof coordinates[1] === "number"
+  ) {
+    return extendBoundsWithPosition(bounds, coordinates as GeoJSON.Position);
+  }
+
+  let nextBounds = bounds;
+  for (const child of coordinates) {
+    nextBounds = extendBoundsWithCoordinates(nextBounds, child);
+  }
+
+  return nextBounds;
+}
+
 function geometryBounds(
   geometry: GeoJSON.Geometry | null | undefined
 ): LngLatBounds | null {
-  let bounds: LngLatBounds | null = null;
+  if (!geometry) {
+    return null;
+  }
 
-  const visit = (current: GeoJSON.Geometry | null | undefined) => {
-    if (!current) {
-      return;
+  if (geometry.type === "GeometryCollection") {
+    let bounds: LngLatBounds | null = null;
+    for (const child of geometry.geometries) {
+      bounds = extendBoundsWithGeometry(bounds, child);
     }
+    return bounds;
+  }
 
-    switch (current.type) {
-      case "Point":
-        bounds = extendBoundsWithPosition(bounds, current.coordinates);
-        break;
-      case "MultiPoint":
-      case "LineString":
-        for (const position of current.coordinates) {
-          bounds = extendBoundsWithPosition(bounds, position);
-        }
-        break;
-      case "MultiLineString":
-      case "Polygon":
-        for (const line of current.coordinates) {
-          for (const position of line) {
-            bounds = extendBoundsWithPosition(bounds, position);
-          }
-        }
-        break;
-      case "MultiPolygon":
-        for (const polygon of current.coordinates) {
-          for (const line of polygon) {
-            for (const position of line) {
-              bounds = extendBoundsWithPosition(bounds, position);
-            }
-          }
-        }
-        break;
-      case "GeometryCollection":
-        for (const child of current.geometries) {
-          visit(child);
-        }
-        break;
-    }
-  };
+  return extendBoundsWithCoordinates(null, geometry.coordinates);
+}
 
-  visit(geometry);
+function extendBoundsWithGeometry(
+  bounds: LngLatBounds | null,
+  geometry: GeoJSON.Geometry
+): LngLatBounds | null {
+  const nextBounds = geometryBounds(geometry);
+  if (!nextBounds) {
+    return bounds;
+  }
+
+  if (!bounds) {
+    return nextBounds;
+  }
+
+  bounds.extend(nextBounds);
   return bounds;
+}
+
+function focusCountry(map: MapLibreMap, geometry: GeoJSON.Geometry) {
+  const bounds = geometryBounds(geometry);
+  if (!bounds) {
+    return;
+  }
+
+  const leftPadding = window.innerWidth >= 1024 ? 320 : 80;
+  map.fitBounds(bounds, {
+    padding: {
+      top: 96,
+      right: 96,
+      bottom: 128,
+      left: leftPadding,
+    },
+    maxZoom: 7.5,
+    duration: 900,
+    essential: true,
+  });
+}
+
+function getClickableCountryName(feature: MapGeoJSONFeature): string {
+  return typeof feature.properties?.articleCountryName === "string"
+    ? feature.properties.articleCountryName
+    : getArticleCountryName(feature.properties);
+}
+
+function getCountryData(feature: MapGeoJSONFeature): CountryData | null {
+  const name = getClickableCountryName(feature);
+  if (name === "Unknown") {
+    return null;
+  }
+
+  return {
+    name,
+    isoA3:
+      typeof feature.properties?.ISO_A3 === "string"
+        ? feature.properties.ISO_A3
+        : "",
+  };
 }
 
 export function ClickableCountries({
   countryArticleCounts = {},
+  countryFilterMode = "exclude",
+  maxCountryArticleCount = 0,
   selectedCountry,
+  selectedCountryFilters = [],
   onCountryClick,
   showChoropleth = true,
 }: ClickableCountriesProps) {
@@ -270,25 +337,52 @@ export function ClickableCountries({
   const previousSelectedCountryName = useRef<string | null>(null);
   const [countriesGeoJson, setCountriesGeoJson] =
     useState<CountriesFeatureCollection>(empty_countries_geojson);
+  const normalizedCountryFilters = useMemo(
+    () => buildNormalizedCountrySet(selectedCountryFilters),
+    [selectedCountryFilters]
+  );
+  const choroplethFillColor = useMemo(
+    () =>
+      [
+        ...buildCountryArticleColorExpression(maxCountryArticleCount),
+      ] as ExpressionSpecification,
+    [maxCountryArticleCount]
+  );
 
   const countriesWithArticleCounts = useMemo<CountriesFeatureCollection>(
     () => ({
       ...countriesGeoJson,
-      features: countriesGeoJson.features.map((feature) => {
+      features: countriesGeoJson.features.flatMap((feature) => {
         const properties = feature.properties ?? {};
         const articleCountryName = getArticleCountryName(properties);
-
-        return {
-          ...feature,
-          properties: {
-            ...properties,
+        if (
+          !matchesCountryFilter(
             articleCountryName,
-            articleCount: countryArticleCounts[articleCountryName] ?? 0,
+            countryFilterMode,
+            normalizedCountryFilters
+          )
+        ) {
+          return [];
+        }
+
+        return [
+          {
+            ...feature,
+            properties: {
+              ...properties,
+              articleCountryName,
+              articleCount: countryArticleCounts[articleCountryName] ?? 0,
+            },
           },
-        };
+        ];
       }),
     }),
-    [countriesGeoJson, countryArticleCounts]
+    [
+      countriesGeoJson,
+      countryArticleCounts,
+      countryFilterMode,
+      normalizedCountryFilters,
+    ]
   );
 
   useEffect(() => {
@@ -344,7 +438,8 @@ export function ClickableCountries({
         type: "fill",
         source: source_id,
         paint: {
-          "fill-color": choropleth_fill_color,
+          "fill-color": default_choropleth_fill_color,
+          "fill-color-transition": { duration: 350 },
           "fill-opacity": choropleth_fill_opacity,
         },
       });
@@ -378,103 +473,56 @@ export function ClickableCountries({
 
     let hovered_id: string | number | null = null;
 
-    type MapEventWithFeatures = MapMouseEvent & {
-      features?: MapGeoJSONFeature[];
-    };
+    const clear_hovered_country = () => {
+      if (hovered_id === null) {
+        return;
+      }
 
-    const get_clickable_country_name = (feature: MapGeoJSONFeature) =>
-      typeof feature.properties?.articleCountryName === "string"
-        ? feature.properties.articleCountryName
-        : getArticleCountryName(feature.properties);
+      map.setFeatureState(
+        { source: source_id, id: hovered_id },
+        { hover: false }
+      );
+      hovered_id = null;
+    };
 
     const handle_mouse_move = (e: MapEventWithFeatures) => {
-      if (e.features && e.features.length > 0) {
-        if (get_clickable_country_name(e.features[0]) === "Unknown") {
-          if (hovered_id !== null) {
-            map.setFeatureState(
-              { source: source_id, id: hovered_id },
-              { hover: false }
-            );
-          }
-          hovered_id = null;
-          map.getCanvas().style.cursor = "";
-          return;
-        }
-
-        if (hovered_id !== null) {
-          map.setFeatureState(
-            { source: source_id, id: hovered_id },
-            { hover: false }
-          );
-        }
-        hovered_id = e.features[0].id ?? null;
-        if (hovered_id !== null) {
-          map.setFeatureState(
-            { source: source_id, id: hovered_id },
-            { hover: true }
-          );
-        }
-        map.getCanvas().style.cursor = "pointer";
+      const feature = e.features?.[0];
+      if (!feature || getClickableCountryName(feature) === "Unknown") {
+        clear_hovered_country();
+        map.getCanvas().style.cursor = "";
+        return;
       }
-    };
 
-    const handle_mouse_leave = () => {
+      clear_hovered_country();
+      hovered_id = feature.id ?? null;
       if (hovered_id !== null) {
         map.setFeatureState(
           { source: source_id, id: hovered_id },
-          { hover: false }
+          { hover: true }
         );
       }
-      hovered_id = null;
+      map.getCanvas().style.cursor = "pointer";
+    };
+
+    const handle_mouse_leave = () => {
+      clear_hovered_country();
       map.getCanvas().style.cursor = "";
     };
 
     const handle_click = (e: MapEventWithFeatures) => {
       const currentOnCountryClick = onCountryClickRef.current;
 
-      if (e.defaultPrevented || !currentOnCountryClick) {
+      const feature = e.features?.[0];
+      if (e.defaultPrevented || !currentOnCountryClick || !feature) {
         return;
       }
 
-      if (e.features && e.features.length > 0) {
-        const properties = e.features[0].properties;
-
-        // Extract Natural Earth specific properties
-        if (properties) {
-          const name =
-            typeof properties.articleCountryName === "string"
-              ? properties.articleCountryName
-              : getArticleCountryName(properties);
-          if (name === "Unknown") {
-            return;
-          }
-          if (name === selectedCountryNameRef.current) {
-            return;
-          }
-
-          const bounds = geometryBounds(e.features[0].geometry);
-          if (bounds) {
-            const leftPadding = window.innerWidth >= 1024 ? 320 : 80;
-            map.fitBounds(bounds, {
-              padding: {
-                top: 96,
-                right: 96,
-                bottom: 128,
-                left: leftPadding,
-              },
-              maxZoom: 7.5,
-              duration: 900,
-              essential: true,
-            });
-          }
-
-          currentOnCountryClick({
-            name,
-            isoA3:
-              typeof properties.ISO_A3 === "string" ? properties.ISO_A3 : "",
-          });
-        }
+      const country = getCountryData(feature);
+      if (!country || country.name === selectedCountryNameRef.current) {
+        return;
       }
+
+      currentOnCountryClick(country);
     };
 
     map.on("mousemove", layer_id, handle_mouse_move);
@@ -525,7 +573,7 @@ export function ClickableCountries({
     let outlineWidth = neutral_outline_width;
 
     if (shouldShowChoropleth) {
-      fillColor = choropleth_fill_color;
+      fillColor = choroplethFillColor;
       fillOpacity = choropleth_fill_opacity;
       outlineColor = overview_outline_color;
       outlineWidth = overview_outline_width;
@@ -563,17 +611,9 @@ export function ClickableCountries({
       );
     }
 
-    map.setPaintProperty(
-      outline_layer_id,
-      "line-color",
-      outlineColor
-    );
-    map.setPaintProperty(
-      outline_layer_id,
-      "line-width",
-      outlineWidth
-    );
-  }, [isLoaded, map, selectedCountryName, showChoropleth]);
+    map.setPaintProperty(outline_layer_id, "line-color", outlineColor);
+    map.setPaintProperty(outline_layer_id, "line-width", outlineWidth);
+  }, [choroplethFillColor, isLoaded, map, selectedCountryName, showChoropleth]);
 
   useEffect(() => {
     if (!(isLoaded && map)) {
@@ -591,8 +631,24 @@ export function ClickableCountries({
       });
     }
 
+    if (
+      selectedCountryName &&
+      previousSelectedCountryName.current !== selectedCountryName
+    ) {
+      const feature = countriesWithArticleCounts.features.find(
+        ({ properties }) =>
+          properties?.articleCountryName === selectedCountryName
+      );
+
+      if (!feature) {
+        return;
+      }
+
+      focusCountry(map, feature.geometry);
+    }
+
     previousSelectedCountryName.current = selectedCountryName;
-  }, [isLoaded, map, selectedCountryName]);
+  }, [countriesWithArticleCounts.features, isLoaded, map, selectedCountryName]);
 
   return null;
 }

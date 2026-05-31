@@ -16,7 +16,7 @@ const extraction_schema = z.object({
     "politika",
     "vojna_in_konflikti",
     "naravne_nesrece",
-    "prometne_nesrece",
+    "nesrece_in_incidenti",
     "kriminal",
     "sport",
     "kultura",
@@ -189,7 +189,7 @@ ALLOWED TOPICS:
 - politika 
 - vojna_in_konflikti
 - naravne_nesrece,
-- prometne_nesrece, 
+- nesrece_in_incidenti,
 - kriminal
 - sport
 - kultura
@@ -209,7 +209,7 @@ Topic rules:
 - If it is about war, military attacks, armed conflict, occupation, weapons or soldiers, use vojna_in_konflikti.
 - If it is about earthquakes, floods, storms, wildfires or weather disasters, use naravne_nesrece.
 - If it is about murders, police, crime, trials or courts, use kriminal.
-- If it is about traffic accidents, car crashes, road incidents or transportation disasters, use prometne_nesrece.
+- If it is about accidents, transportation incidents, technical failures, explosions or other accidental deaths and injuries, use nesrece_in_incidenti.
 - If it is about food, restaurants, cooking or culinary arts, use gastronomija.
 - If it is about sports competitions, teams, athletes or matches, use sport.
 - If it is about art, books, theatre, museums, exhibitions, festivals, fashion or film as art, use kultura.

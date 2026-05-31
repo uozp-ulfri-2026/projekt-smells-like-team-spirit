@@ -1,4 +1,4 @@
-import { CircleDot, Map as MapIcon } from "lucide-react";
+import { CircleDot, Map as MapIcon, Moon, Settings, Sun } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import ArticleCard from "@/components/article-card";
 import type { CountryData } from "@/components/clickable-countries";
@@ -7,8 +7,25 @@ import { CountryDots } from "@/components/country-dots";
 import Explorator from "@/components/explorator";
 import { TimelineSlider } from "@/components/timeline-slider";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import { SidebarProvider } from "@/components/ui/sidebar";
-import { COUNTRY_ARTICLE_COLOR_STOPS } from "@/lib/country-article-scale";
+import {
+  buildCountryArticleLegendTicks,
+  COUNTRY_ARTICLE_COLOR_STOPS,
+} from "@/lib/country-article-scale";
+import { getCountryDisplayName } from "@/lib/country-display-names";
+import {
+  buildNormalizedCountrySet,
+  type CountryFilterMode,
+  matchesCountryFilter,
+} from "@/lib/country-filter";
 import {
   type CityFeature,
   type CityFeatureCollection,
@@ -16,6 +33,7 @@ import {
   useMmcArticles,
   useMmcGeoJson,
 } from "@/lib/mmc-data";
+import { getTopicStyle } from "@/lib/topic-colors";
 import { Map as MapComponent, MapControls } from "./components/map";
 import { Card } from "./components/ui/card";
 import { LineShadowText } from "./components/ui/line-shadow-text";
@@ -28,6 +46,7 @@ const AUTOPLAY_MIN_WINDOW_MS = 30 * DAY_MS;
 
 type DatasetId = "v2" | "old";
 type MapDisplayMode = "dots" | "heatmap";
+type ColorMode = "dark" | "light";
 
 const DATASETS: Record<
   DatasetId,
@@ -135,73 +154,188 @@ function useDebouncedValue<T>(value: T, delay: number): T {
   return debouncedValue;
 }
 
-function CountryColorLegend({ selectedTopic }: { selectedTopic: string }) {
+function CountryColorLegend({
+  maxArticleCount,
+  selectedTopic,
+}: {
+  maxArticleCount: number;
+  selectedTopic: string;
+}) {
   const gradient = `linear-gradient(90deg, ${COUNTRY_ARTICLE_COLOR_STOPS.map(
-    (stop) => stop.color
+    (stop) => `${stop.color} ${stop.ratio * 100}%`
   ).join(", ")})`;
-  const ticks = COUNTRY_ARTICLE_COLOR_STOPS.filter((_, index) =>
-    [0, 2, 4, 6, COUNTRY_ARTICLE_COLOR_STOPS.length - 1].includes(index)
-  );
+  const ticks = buildCountryArticleLegendTicks(maxArticleCount);
 
   return (
     <div className="absolute bottom-4 left-4 z-10 w-72 border bg-background/95 px-3 py-2 text-xs shadow-md backdrop-blur">
       <div className="mb-2 flex items-center justify-between gap-2">
-        <span className="font-medium text-foreground">Articles by country</span>
+        <span className="font-medium text-foreground">Novice po državah</span>
         {selectedTopic !== "all" && (
           <span className="truncate text-muted-foreground">
-            {selectedTopic}
+            {getTopicStyle(selectedTopic).label}
           </span>
         )}
       </div>
       <div className="h-2" style={{ background: gradient }} />
       <div className="mt-1 flex justify-between text-[10px] text-muted-foreground">
         {ticks.map((stop) => (
-          <span key={stop.label}>{stop.label}</span>
+          <span key={`${stop.count}-${stop.label}`}>{stop.label}</span>
         ))}
       </div>
     </div>
   );
 }
 
-function MapDisplayToggle({
+function getInitialColorMode(): ColorMode {
+  return window.matchMedia("(prefers-color-scheme: dark)").matches
+    ? "dark"
+    : "light";
+}
+
+function SettingSwitch({
+  checked,
+  label,
+  onCheckedChange,
+}: {
+  checked: boolean;
+  label: string;
+  onCheckedChange: (checked: boolean) => void;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-4 border-t py-3">
+      <span className="text-foreground text-sm">{label}</span>
+      <button
+        aria-checked={checked}
+        aria-label={label}
+        className="inline-flex h-6 w-11 items-center border bg-muted px-0.5 transition-colors aria-checked:bg-primary"
+        onClick={() => onCheckedChange(!checked)}
+        role="switch"
+        type="button"
+      >
+        <span
+          className={`size-4 bg-background shadow-sm transition-transform ${
+            checked ? "translate-x-5" : "translate-x-0"
+          }`}
+        />
+      </button>
+    </div>
+  );
+}
+
+function PageToolbar({
   mode,
   onModeChange,
+  colorMode,
+  onColorModeChange,
+  showCountryThemeStats,
+  onShowCountryThemeStatsChange,
+  showTimeSlider,
+  onShowTimeSliderChange,
 }: {
   mode: MapDisplayMode;
   onModeChange: (mode: MapDisplayMode) => void;
+  colorMode: ColorMode;
+  onColorModeChange: (mode: ColorMode) => void;
+  showCountryThemeStats: boolean;
+  onShowCountryThemeStatsChange: (checked: boolean) => void;
+  showTimeSlider: boolean;
+  onShowTimeSliderChange: (checked: boolean) => void;
 }) {
+  const isHeatmap = mode === "heatmap";
+
   return (
-    <fieldset className="absolute top-2 right-12 z-20 flex overflow-hidden border border-border bg-background shadow-sm">
-      <legend className="sr-only">Map display mode</legend>
-      <Button
-        aria-pressed={mode === "dots"}
-        className="h-8 border-0 px-2"
-        onClick={() => onModeChange("dots")}
-        title="Dots"
+    <div className="fixed top-8 right-8 z-40 flex gap-1.5">
+      <button
+        aria-checked={isHeatmap}
+        aria-label="Preklopi prikaz pik ali toplotnega zemljevida"
+        className="flex h-8 items-center gap-1.5 border bg-background px-2 text-foreground text-xs shadow-sm"
+        onClick={() => onModeChange(isHeatmap ? "dots" : "heatmap")}
+        role="switch"
+        title={isHeatmap ? "Prikaži pike" : "Prikaži toplotni zemljevid"}
         type="button"
-        variant={mode === "dots" ? "default" : "ghost"}
       >
-        <CircleDot className="size-4" />
-        <span className="hidden sm:inline">Dots</span>
-      </Button>
-      <Button
-        aria-pressed={mode === "heatmap"}
-        className="h-8 border-0 px-2"
-        onClick={() => onModeChange("heatmap")}
-        title="Heatmap"
-        type="button"
-        variant={mode === "heatmap" ? "default" : "ghost"}
-      >
-        <MapIcon className="size-4" />
-        <span className="hidden sm:inline">Heatmap</span>
-      </Button>
-    </fieldset>
+        <CircleDot
+          className={`size-3.5 ${
+            isHeatmap ? "text-muted-foreground" : "text-foreground"
+          }`}
+        />
+        <span className="relative h-4 w-7 bg-muted">
+          <span
+            className="absolute top-0.5 left-0.5 size-3 bg-primary transition-transform"
+            style={{ transform: `translateX(${isHeatmap ? 12 : 0}px)` }}
+          />
+        </span>
+        <MapIcon
+          className={`size-3.5 ${
+            isHeatmap ? "text-foreground" : "text-muted-foreground"
+          }`}
+        />
+      </button>
+
+      <Dialog>
+        <DialogTrigger asChild>
+          <Button
+            aria-label="Odpri nastavitve"
+            size="icon"
+            title="Nastavitve"
+            variant="outline"
+          >
+            <Settings className="size-4 text-foreground" />
+          </Button>
+        </DialogTrigger>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Nastavitve</DialogTitle>
+            <DialogDescription>
+              Prilagodi prikaz zemljevida in časovnice.
+            </DialogDescription>
+          </DialogHeader>
+          <div>
+            <div className="flex items-center justify-between gap-4 border-t py-3">
+              <span className="text-foreground text-sm">Način</span>
+              <div className="flex overflow-hidden border">
+                <Button
+                  aria-pressed={colorMode === "light"}
+                  className="border-0"
+                  onClick={() => onColorModeChange("light")}
+                  size="sm"
+                  variant={colorMode === "light" ? "default" : "ghost"}
+                >
+                  <Sun />
+                  Svetli
+                </Button>
+                <Button
+                  aria-pressed={colorMode === "dark"}
+                  className="border-0"
+                  onClick={() => onColorModeChange("dark")}
+                  size="sm"
+                  variant={colorMode === "dark" ? "default" : "ghost"}
+                >
+                  <Moon />
+                  Temni
+                </Button>
+              </div>
+            </div>
+            <SettingSwitch
+              checked={showCountryThemeStats}
+              label="Prikaži deleže tem po državah"
+              onCheckedChange={onShowCountryThemeStatsChange}
+            />
+            <SettingSwitch
+              checked={showTimeSlider}
+              label="Prikaži časovnico"
+              onCheckedChange={onShowTimeSliderChange}
+            />
+          </div>
+        </DialogContent>
+      </Dialog>
+    </div>
   );
 }
 
 export default function App() {
   return (
-    <main className="flex h-svh flex-col gap-8 overflow-hidden p-8 pb-28">
+    <main className="flex h-svh flex-col gap-8 overflow-hidden p-8">
       {/* <h1 className="text-4xl font-bold text-center shrink-0">Slovenski svet</h1> */}
       <div className="prose flex shrink-0 items-center justify-center">
         <h1 className="text-balance font-semibold text-4xl leading-none tracking-tighter sm:text-5xl md:text-6xl lg:text-7xl">
@@ -232,8 +366,16 @@ export function MyMap() {
     null
   );
   const [selectedTopic, setSelectedTopic] = useState("all");
+  const [countryFilterMode, setCountryFilterMode] =
+    useState<CountryFilterMode>("exclude");
+  const [selectedCountryFilters, setSelectedCountryFilters] = useState<
+    string[]
+  >([]);
   const [mapDisplayMode, setMapDisplayMode] =
     useState<MapDisplayMode>("heatmap");
+  const [colorMode, setColorMode] = useState<ColorMode>(getInitialColorMode);
+  const [showCountryThemeStats, setShowCountryThemeStats] = useState(true);
+  const [showTimeSlider, setShowTimeSlider] = useState(true);
   const [isTimelinePlaying, setIsTimelinePlaying] = useState(false);
   const timelineRangeRef = useRef<[number, number] | null>(timelineRange);
   const debouncedTimelineRange = useDebouncedValue(timelineRange, 250);
@@ -247,11 +389,41 @@ export function MyMap() {
   const articlesById = articlesData?.byId ?? {};
   const timeline = articlesData?.timeline ?? [];
   const timelineLoadError =
-    geoJsonError || articlesError ? "Casovnice ni bilo mogoce naloziti." : null;
+    geoJsonError || articlesError ? "Časovnice ni bilo mogoče naložiti." : null;
+  const normalizedCountryFilters = useMemo(
+    () => buildNormalizedCountrySet(selectedCountryFilters),
+    [selectedCountryFilters]
+  );
+  const countryMatchesFilter = useCallback(
+    (country: string) =>
+      matchesCountryFilter(
+        country,
+        countryFilterMode,
+        normalizedCountryFilters
+      ),
+    [countryFilterMode, normalizedCountryFilters]
+  );
+  const availableCountries = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          baseGeoJson.features.flatMap((feature) => {
+            const country = feature.properties?.country;
+            return typeof country === "string" ? [country] : [];
+          })
+        )
+      ).sort((a, b) => a.localeCompare(b, "en")),
+    [baseGeoJson.features]
+  );
 
   useEffect(() => {
     timelineRangeRef.current = timelineRange;
   }, [timelineRange]);
+
+  useEffect(() => {
+    document.documentElement.classList.toggle("dark", colorMode === "dark");
+    document.documentElement.classList.toggle("light", colorMode === "light");
+  }, [colorMode]);
 
   useEffect(() => {
     if (timeline.length === 0) {
@@ -367,6 +539,11 @@ export function MyMap() {
     const features: CityFeature[] = [];
 
     for (const feature of baseGeoJson.features) {
+      const country = feature.properties?.country;
+      if (typeof country === "string" && !countryMatchesFilter(country)) {
+        continue;
+      }
+
       const ids = Array.isArray(feature.properties?.ids)
         ? feature.properties.ids
         : [];
@@ -392,7 +569,12 @@ export function MyMap() {
       ...baseGeoJson,
       features,
     };
-  }, [articleTimeById, baseGeoJson, normalizedTimelineRange]);
+  }, [
+    articleTimeById,
+    baseGeoJson,
+    countryMatchesFilter,
+    normalizedTimelineRange,
+  ]);
 
   const topicFilteredGeoJson = useMemo<CityFeatureCollection>(() => {
     if (selectedTopic === "all") {
@@ -443,6 +625,11 @@ export function MyMap() {
     const visibleIds = new Set<string>();
 
     for (const feature of baseGeoJson.features) {
+      const country = feature.properties?.country;
+      if (typeof country === "string" && !countryMatchesFilter(country)) {
+        continue;
+      }
+
       const ids = Array.isArray(feature.properties?.ids)
         ? feature.properties.ids
         : [];
@@ -465,6 +652,7 @@ export function MyMap() {
     articleMatchesSelectedTopic,
     articleTimeById,
     baseGeoJson,
+    countryMatchesFilter,
     timelineBounds,
     timelineRange,
   ]);
@@ -503,6 +691,10 @@ export function MyMap() {
       Array.from(idsByCountry, ([country, ids]) => [country, ids.size])
     );
   }, [topicFilteredGeoJson]);
+  const maxCountryArticleCount = useMemo(
+    () => Math.max(0, ...Object.values(countryArticleCounts)),
+    [countryArticleCounts]
+  );
 
   useEffect(() => {
     if (selectedArticleId && !visibleArticleIds.has(selectedArticleId)) {
@@ -515,11 +707,18 @@ export function MyMap() {
     });
   }, [selectedArticleId, visibleArticleIds]);
 
+  useEffect(() => {
+    if (selectedCountry && !countryMatchesFilter(selectedCountry.name)) {
+      setSelectedCountry(null);
+      setSelectedArticleId(null);
+      setSelectedDotArticleIds([]);
+    }
+  }, [countryMatchesFilter, selectedCountry]);
+
   const handleCountryClick = useCallback((country: CountryData) => {
     setSelectedCountry(country);
     setSelectedArticleId(null);
     setSelectedDotArticleIds([]);
-    setSidebarOpen(true);
   }, []);
 
   const handleDotClick = useCallback((ids: string[]) => {
@@ -532,12 +731,23 @@ export function MyMap() {
     setSidebarOpen(true);
   }, []);
 
-  const handleArticleSelect = useCallback((id: string) => {
-    setSelectedArticleId(id);
-    setSelectedDotArticleIds((ids) =>
-      ids.length > 0 && ids.includes(id) ? ids : []
-    );
-  }, []);
+  const handleArticleSelect = useCallback(
+    ({ country, id }: { country: string; id: string }) => {
+      setSelectedArticleId(id);
+      setSelectedDotArticleIds((ids) =>
+        ids.length > 0 && ids.includes(id) ? ids : []
+      );
+
+      if (mapDisplayMode !== "heatmap") {
+        return;
+      }
+
+      if (selectedCountry?.name.toLowerCase() !== country.toLowerCase()) {
+        setSelectedCountry({ isoA3: "", name: country });
+      }
+    },
+    [mapDisplayMode, selectedCountry?.name]
+  );
 
   const handleClearSelectedDot = useCallback(() => {
     setSelectedDotArticleIds([]);
@@ -603,51 +813,72 @@ export function MyMap() {
       open={sidebarOpen}
     >
       {/* Explorator Sidebar */}
+      <PageToolbar
+        colorMode={colorMode}
+        mode={mapDisplayMode}
+        onColorModeChange={setColorMode}
+        onModeChange={handleMapDisplayModeChange}
+        onShowCountryThemeStatsChange={setShowCountryThemeStats}
+        onShowTimeSliderChange={setShowTimeSlider}
+        showCountryThemeStats={showCountryThemeStats}
+        showTimeSlider={showTimeSlider}
+      />
+
       <Explorator
         articlesById={articlesById}
+        availableCountries={availableCountries}
         country={selectedCountry}
+        countryFilterMode={countryFilterMode}
         geoJson={filteredGeoJson}
         onClearSelectedDot={handleClearSelectedDot}
+        onCountryFilterModeChange={setCountryFilterMode}
         onSelectArticle={handleArticleSelect}
+        onSelectedCountryFiltersChange={setSelectedCountryFilters}
         onSelectedTopicChange={setSelectedTopic}
         selectedArticleId={selectedArticleId}
+        selectedCountryFilters={selectedCountryFilters}
         selectedDotArticleIds={selectedDotArticleIds}
         selectedTopic={selectedTopic}
+        showCountryThemeStats={showCountryThemeStats}
       />
 
       <div className="flex min-h-0 flex-1 flex-col gap-3">
         <Card className="relative min-h-0 flex-1 overflow-hidden p-0">
           {selectedCountry && mapDisplayMode === "heatmap" && (
             <div className="absolute top-4 left-4 z-10 flex items-center justify-between gap-4 border bg-background px-4 py-2 font-semibold text-foreground shadow-md">
-              <span>Selected: {selectedCountry.name}</span>
+              <span>
+                Izbrana država: {getCountryDisplayName(selectedCountry.name)}
+              </span>
               <Button
                 className="h-auto text-sm"
                 onClick={handleClearCountry}
                 size="sm"
                 variant="link"
               >
-                Clear
+                Počisti
               </Button>
             </div>
           )}
           {!selectedCountry && mapDisplayMode === "heatmap" && (
-            <CountryColorLegend selectedTopic={selectedTopic} />
+            <CountryColorLegend
+              maxArticleCount={maxCountryArticleCount}
+              selectedTopic={selectedTopic}
+            />
           )}
 
           <MapComponent center={[14.5058, 46.0569]} zoom={4}>
-            <MapDisplayToggle
-              mode={mapDisplayMode}
-              onModeChange={handleMapDisplayModeChange}
-            />
             <MapControls position="top-right" />
             <ClickableCountries
               countryArticleCounts={countryArticleCounts}
+              countryFilterMode={countryFilterMode}
+              maxCountryArticleCount={maxCountryArticleCount}
               onCountryClick={
                 mapDisplayMode === "heatmap" ? handleCountryClick : undefined
               }
               selectedCountry={
                 mapDisplayMode === "heatmap" ? selectedCountry : null
               }
+              selectedCountryFilters={selectedCountryFilters}
               showChoropleth={mapDisplayMode === "heatmap"}
             />
             <CountryDots
@@ -667,7 +898,7 @@ export function MyMap() {
           />
         </Card>
 
-        {timelineRange && timelineBounds ? (
+        {showTimeSlider && timelineRange && timelineBounds && (
           <TimelineSlider
             articleCount={timelineArticleCount}
             endLabel={formatTimelineDate(
@@ -685,8 +916,9 @@ export function MyMap() {
             step={DAY_MS}
             value={timelineRange}
           />
-        ) : (
-          <div className="fixed right-8 bottom-8 left-8 z-1000 border bg-background/95 px-4 py-3 text-muted-foreground text-xs shadow-md backdrop-blur">
+        )}
+        {showTimeSlider && !(timelineRange && timelineBounds) && (
+          <div className="shrink-0 border bg-background/95 px-4 py-3 text-muted-foreground text-xs shadow-md backdrop-blur">
             {timelineLoadError ?? "Nalaganje časovnice ..."}
           </div>
         )}

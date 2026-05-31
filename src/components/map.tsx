@@ -238,9 +238,7 @@ const MapComponent = function MapComponent({
         container: containerRef.current,
         style: initialStyle,
         renderWorldCopies: false,
-        attributionControl: {
-          compact: true,
-        },
+        attributionControl: false,
         ...props,
         ...viewport,
       });
@@ -480,7 +478,6 @@ function MapMarker({
     markerInstance.on("dragend", handleDragEnd);
 
     return markerInstance;
-
   }, []);
 
   useEffect(() => {
@@ -493,7 +490,6 @@ function MapMarker({
     return () => {
       marker.remove();
     };
-
   }, [map, marker.addTo, marker.remove]);
 
   if (
@@ -559,7 +555,7 @@ function DefaultMarkerIcon() {
 function PopupCloseButton({ onClick }: { onClick: () => void }) {
   return (
     <button
-      aria-label="Close popup"
+      aria-label="Zapri pojavno okno"
       className="absolute top-0.5 right-0.5 z-10 inline-flex size-5 cursor-pointer items-center justify-center rounded-sm text-foreground transition-colors hover:bg-muted focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       onClick={onClick}
       type="button"
@@ -889,10 +885,10 @@ function MapControls({
     >
       {showZoom && (
         <ControlGroup>
-          <ControlButton label="Zoom in" onClick={handleZoomIn}>
+          <ControlButton label="Približaj" onClick={handleZoomIn}>
             <Plus className="size-4" />
           </ControlButton>
-          <ControlButton label="Zoom out" onClick={handleZoomOut}>
+          <ControlButton label="Oddalji" onClick={handleZoomOut}>
             <Minus className="size-4" />
           </ControlButton>
         </ControlGroup>
@@ -906,7 +902,7 @@ function MapControls({
         <ControlGroup>
           <ControlButton
             disabled={waitingForLocation}
-            label="Find my location"
+            label="Poišči mojo lokacijo"
             onClick={handleLocate}
           >
             {waitingForLocation ? (
@@ -919,7 +915,10 @@ function MapControls({
       )}
       {showFullscreen && (
         <ControlGroup>
-          <ControlButton label="Toggle fullscreen" onClick={handleFullscreen}>
+          <ControlButton
+            label="Preklopi celozaslonski prikaz"
+            onClick={handleFullscreen}
+          >
             <Maximize className="size-4" />
           </ControlButton>
         </ControlGroup>
@@ -956,14 +955,14 @@ function CompassButton({ onClick }: { onClick: () => void }) {
   }, [map]);
 
   return (
-    <ControlButton label="Reset bearing to north" onClick={onClick}>
+    <ControlButton label="Poravnaj zemljevid proti severu" onClick={onClick}>
       <svg
         className="size-5 transition-transform duration-200"
         ref={compassRef}
         style={{ transformStyle: "preserve-3d" }}
         viewBox="0 0 24 24"
       >
-        <title>Compass</title>
+        <title>Kompas</title>
         <path className="fill-red-500" d="M12 2L16 12H12V2Z" />
         <path className="fill-red-300" d="M12 2L8 12H12V2Z" />
         <path className="fill-muted-foreground/60" d="M12 22L16 12H12V22Z" />
@@ -1331,11 +1330,11 @@ function mergeArcPaint(
       baseValue === undefined
         ? hoverValue
         : [
-          "case",
-          ["boolean", ["feature-state", "hover"], false],
-          hoverValue,
-          baseValue,
-        ];
+            "case",
+            ["boolean", ["feature-state", "hover"], false],
+            hoverValue,
+            baseValue,
+          ];
   }
   return merged as MapArcLinePaint;
 }
@@ -1552,8 +1551,8 @@ function MapArc<T extends MapArcDatum = MapArcDatum>({
       featureId == null
         ? undefined
         : latestRef.current.data.find(
-          (arc) => String(arc.id) === String(featureId)
-        );
+            (arc) => String(arc.id) === String(featureId)
+          );
 
     const handleMouseMove = (e: MapLibreGL.MapLayerMouseEvent) => {
       const featureId = e.features?.[0]?.id as string | number | undefined;

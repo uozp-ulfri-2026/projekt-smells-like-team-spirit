@@ -37,7 +37,7 @@ const TOPIC_STYLES: Record<string, TopicStyle> = {
     textColor: "#e879f9",
   },
   "NARAVNE NESRECE": {
-    label: "Naravne nesrece",
+    label: "Naravne nesre\u010de",
     color: "#ef4444",
     textColor: "#f87171",
   },
@@ -52,12 +52,17 @@ const TOPIC_STYLES: Record<string, TopicStyle> = {
     textColor: "#60a5fa",
   },
   "PROMETNE NESRECE": {
-    label: "Prometne nesrece",
+    label: "Nesre\u010de in incidenti",
+    color: "#fb923c",
+    textColor: "#fdba74",
+  },
+  "NESRECE IN INCIDENTI": {
+    label: "Nesre\u010de in incidenti",
     color: "#fb923c",
     textColor: "#fdba74",
   },
   SPORT: {
-    label: "Sport",
+    label: "\u0160port",
     color: "#84cc16",
     textColor: "#a3e635",
   },

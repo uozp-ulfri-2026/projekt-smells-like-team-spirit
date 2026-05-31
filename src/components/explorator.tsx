@@ -2,6 +2,8 @@
 
 import React, { useEffect, useMemo, useState } from "react";
 import type { CountryData } from "@/components/clickable-countries";
+import { CountryFilter } from "@/components/country-filter";
+import { CountryTopicBreakdown } from "@/components/country-topic-breakdown";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -23,10 +25,12 @@ import {
 import {
   Sidebar,
   SidebarContent,
+  SidebarFooter,
   SidebarHeader,
   SidebarTrigger,
   useSidebar,
 } from "@/components/ui/sidebar";
+import type { CountryFilterMode } from "@/lib/country-filter";
 import { getTopicStyle, hexToRgba } from "@/lib/topic-colors";
 
 interface CityFeature {
@@ -56,27 +60,39 @@ const PAGE_SIZE = 10;
 
 export default function Explorator({
   country,
+  countryFilterMode,
   geoJson,
   articlesById,
+  availableCountries,
   selectedArticleId,
   selectedDotArticleIds,
   selectedTopic,
   onSelectedTopicChange,
   onSelectArticle,
   onClearSelectedDot,
+  onCountryFilterModeChange,
+  onSelectedCountryFiltersChange,
+  showCountryThemeStats,
+  selectedCountryFilters,
 }: {
   country: CountryData | null;
+  countryFilterMode: CountryFilterMode;
   geoJson: GeoJSON.FeatureCollection<
     GeoJSON.Point,
     { city?: string; country?: string; ids?: string[] }
   >;
   articlesById: Record<string, LeanArticle>;
+  availableCountries: string[];
   selectedArticleId: string | null;
   selectedDotArticleIds: string[];
   selectedTopic: string;
   onSelectedTopicChange: (topic: string) => void;
-  onSelectArticle: (id: string) => void;
+  onSelectArticle: (article: { country: string; id: string }) => void;
   onClearSelectedDot: () => void;
+  onCountryFilterModeChange: (mode: CountryFilterMode) => void;
+  onSelectedCountryFiltersChange: (countries: string[]) => void;
+  showCountryThemeStats: boolean;
+  selectedCountryFilters: string[];
 }) {
   const { open } = useSidebar();
   const [searchQuery, setSearchQuery] = useState("");
@@ -227,14 +243,14 @@ export default function Explorator({
         <SidebarHeader className="border-b">
           <div className="flex items-center justify-between gap-2">
             <h2 className="font-semibold text-xs uppercase tracking-widest">
-              Cities & News
+              Mesta in novice
             </h2>
             <SidebarTrigger />
           </div>
           <Input
             className="h-7 text-xs"
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Isci mesta..."
+            placeholder="Poišči mesta ..."
             value={searchQuery}
           />
           <Select onValueChange={onSelectedTopicChange} value={selectedTopic}>
@@ -254,13 +270,20 @@ export default function Explorator({
                         className="size-2 rounded-full"
                         style={{ backgroundColor: topicStyle.color }}
                       />
-                      {topic}
+                      {topicStyle.label}
                     </span>
                   </SelectItem>
                 );
               })}
             </SelectContent>
           </Select>
+          <CountryFilter
+            countries={availableCountries}
+            mode={countryFilterMode}
+            onModeChange={onCountryFilterModeChange}
+            onSelectedCountriesChange={onSelectedCountryFiltersChange}
+            selectedCountries={selectedCountryFilters}
+          />
         </SidebarHeader>
 
         <SidebarContent>
@@ -270,8 +293,8 @@ export default function Explorator({
                 <div className="flex items-center justify-between gap-2">
                   <span className="font-medium text-foreground">
                     {selectedDotRows.length === 1
-                      ? "Selected dot article"
-                      : `${selectedDotRows.length} articles at selected dot`}
+                      ? "Izbrana novica na piki"
+                      : `${selectedDotRows.length} novic na izbrani piki`}
                   </span>
                   <Button
                     className="h-auto shrink-0 p-0"
@@ -279,11 +302,12 @@ export default function Explorator({
                     size="sm"
                     variant="link"
                   >
-                    Clear
+                    Počisti
                   </Button>
                 </div>
                 <p className="mt-1 truncate text-muted-foreground">
-                  {selectedDotRows[0].topic} - {selectedDotRows[0].city}
+                  {getTopicStyle(selectedDotRows[0].topic).label} -{" "}
+                  {selectedDotRows[0].city}
                 </p>
               </div>
             )}
@@ -301,7 +325,9 @@ export default function Explorator({
                   <button
                     className="flex w-full items-start gap-2 border border-l-4 px-2 py-1.5 text-left text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                     key={row.id}
-                    onClick={() => onSelectArticle(row.id)}
+                    onClick={() =>
+                      onSelectArticle({ country: row.country, id: row.id })
+                    }
                     style={{
                       borderLeftColor: topicStyle.color,
                       borderTopColor: isSelected
@@ -338,7 +364,7 @@ export default function Explorator({
                         className="truncate text-[11px]"
                         style={{ color: topicStyle.textColor }}
                       >
-                        {row.topic} - {row.city}
+                        {getTopicStyle(row.topic).label} - {row.city}
                       </p>
                     </div>
                   </button>
@@ -417,6 +443,16 @@ export default function Explorator({
             )}
           </div>
         </SidebarContent>
+
+        {country && showCountryThemeStats && (
+          <SidebarFooter className="border-t">
+            <CountryTopicBreakdown
+              articlesById={articlesById}
+              country={country}
+              geoJson={geoJson}
+            />
+          </SidebarFooter>
+        )}
       </Sidebar>
 
       {!open && (

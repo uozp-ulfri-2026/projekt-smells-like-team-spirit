@@ -10,7 +10,7 @@ import { cn } from "@/lib/utils";
 function Pagination({ className, ...props }: React.ComponentProps<"nav">) {
   return (
     <nav
-      aria-label="pagination"
+      aria-label="Oštevilčenje strani"
       className={cn("mx-auto flex w-full justify-center", className)}
       data-slot="pagination"
       {...props}
@@ -65,12 +65,12 @@ function PaginationLink({
 
 function PaginationPrevious({
   className,
-  text = "Previous",
+  text = "Prejšnja",
   ...props
 }: React.ComponentProps<typeof PaginationLink> & { text?: string }) {
   return (
     <PaginationLink
-      aria-label="Go to previous page"
+      aria-label="Pojdi na prejšnjo stran"
       className={cn("pl-1.5!", className)}
       size="default"
       {...props}
@@ -83,12 +83,12 @@ function PaginationPrevious({
 
 function PaginationNext({
   className,
-  text = "Next",
+  text = "Naslednja",
   ...props
 }: React.ComponentProps<typeof PaginationLink> & { text?: string }) {
   return (
     <PaginationLink
-      aria-label="Go to next page"
+      aria-label="Pojdi na naslednjo stran"
       className={cn("pr-1.5!", className)}
       size="default"
       {...props}
@@ -114,7 +114,7 @@ function PaginationEllipsis({
       {...props}
     >
       <MoreHorizontalIcon />
-      <span className="sr-only">More pages</span>
+      <span className="sr-only">Več strani</span>
     </span>
   );
 }
