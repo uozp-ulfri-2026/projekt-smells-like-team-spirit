@@ -2,23 +2,23 @@
 
 ## Povzetek:
 
-Namen projekta je odkrivanje lokacije in tematske kategorije člankov MMC. Uporabljamo lokalno poganjano LLM storitev za ekstrakcijo strukturiranih oznak iz neurejenega besedila, rezultate pa primerjamo z ročno pripravljenim zlatim standardom (90 ročno označenih člankov). Poleg glavnih tem smo uvedli tudi podteme, ki omogočajo podrobnejši vpogled v vsebinsko sestavo posamezne kategorije. Cilj je razumeti, kako je pozornost novic razširjena preko držav in časa. O čem MMC govori, kako intenzivno in iz katerih vsebinskih podskupin je posamezna tema sestavljena?
+Namen projekta je odkrivanje lokacije in tematske kategorije člankov MMC. Primerjamo dva pristopa: prva verzija uporablja lokalno poganjano LLM-storitev, trenutna verzija pa slovar krajev, uteženo točkovanje kandidatov in pravila. Rezultate primerjamo z ročno pripravljenim zlatim standardom (90 ročno označenih člankov). Poleg glavnih tem smo uvedli tudi podteme, ki omogočajo podrobnejši vpogled v vsebinsko sestavo posamezne kategorije. Cilj je razumeti, kako je pozornost novic razširjena preko držav in časa. O čem MMC govori, kako intenzivno in iz katerih vsebinskih podskupin je posamezna tema sestavljena?
 
 ## 1. Uvod
 
 - Namen: Odkrivanje pokritosti člankov po temah, podtemah in lokaciji na mediju MMC. Analizirali bomo razporeditev tem in lokacij skozi čas in prikazali ugotovitve na interaktivnem zemljevidu, kar lahko pomaga pri uredniških odločitvah in nadaljnjih raziskavah.
-- Metode: lokalnemu LLM modelu pošljemo novico z natančno oblikovanim promptom in ta vrne kombinacijo država-kraj, temo in podtemo; dodatna orodja v repozitoriju združujejo, filtrirajo in pripenjajo LLM-izhode. Za starejše že obdelane zapise, ki še nimajo shranjene podteme, aplikacija uporabi nadzorovana pravila na podlagi naslova in uvoda članka.
-- Prispevek tega poročila: jasno predstaviti pipeline, opisati uporabljene tehnike in metrike ter podrobno analizirati rezultate in napake na testni množici.
+- Metode: primerjamo prvo izvedbo, pri kateri lokalnemu LLM-modelu pošljemo novico z natančno oblikovanim promptom, in trenutno izvedbo, ki lokacijo določi s slovarjem krajev, uteženim točkovanjem kandidatov in pravili. Dodatna orodja v repozitoriju združujejo, filtrirajo in pripenjajo izhode. Za starejše že obdelane zapise, ki še nimajo shranjene podteme, aplikacija uporabi nadzorovana pravila na podlagi naslova in uvoda članka.
+- Prispevek tega poročila: jasno predstaviti potek obdelave podatkov, opisati uporabljene tehnike in metrike ter podrobno analizirati rezultate in napake na testni množici.
 
 ## 2. Podatki
 
-- Vir: obdelani MMC zapisi (mapa `assets/cleaned` / `public`), posebna eval množica obstaja (pot potrditi).
+- Vir: obdelani MMC zapisi in izvozi za aplikacijo (`public/mmc-lean.v6.json`, `public/output.v6.geojson`); evalvacijska množica je v datoteki `mmc_llm_vs_mmc_lean_v6_evaluation.xlsx`.
 
-V podatkovnem sklopu zajemamo izvorne MMC članke, ki jih nato očistimo in normaliziramo — ohranimo le ključna polja in metapodatke, da zagotovimo relevantnost informacij ter zmanjšamo šum v kontekstu, saj morajo biti prečiščeni podatki nadalje analizirani z LLM modelom. Na očiščenih besedilih izvajamo avtomatsko ekstrakcijo strukturiranih oznak, kot so glavna tema, podtema, država in kraj. Hkrati pripravimo podatke za prikaz z izbranimi značilkami iz surovih podatkov ter jim pripnemo rezultate analize LLM modela. Natančnost ocenjevanja preverjamo na ročno pripravljeni evalvacijski množici, nato pa na podlagi agregiranih rezultatov pripravljamo vizualizacije in metrike za analizo poročanja skozi čas in po lokacijah. Takšen pristop zagotavlja reproducibilen potek od surovih podatkov do interpretabilnih vpogledov in uredniških zaključkov.
+V podatkovnem sklopu zajemamo izvorne MMC članke, ki jih nato očistimo in normaliziramo — ohranimo le ključna polja in metapodatke, da zagotovimo relevantnost informacij ter zmanjšamo šum v kontekstu nadaljnje avtomatske obdelave. Na očiščenih besedilih izvajamo ekstrakcijo in klasifikacijo strukturiranih oznak, kot so glavna tema, podtema, država in kraj. Hkrati pripravimo podatke za prikaz z izbranimi značilkami iz surovih podatkov ter jim pripnemo rezultate analize. Natančnost ocenjevanja preverjamo na ročno pripravljeni evalvacijski množici, nato pa na podlagi agregiranih rezultatov pripravljamo vizualizacije in metrike za analizo poročanja skozi čas in po lokacijah. Takšen pristop zagotavlja reproducibilen potek od surovih podatkov do interpretabilnih vpogledov in uredniških zaključkov.
 
 Javni podatkovni zapis članka je razširjen s poljem `llm-subtopic`. Ker že obdelani arhiv tega polja še ne vsebuje, je v aplikaciji dodan prehodni deterministični klasifikator. Ta normalizira naslov in uvod članka, nato pa znotraj že določene glavne teme preveri nadzorovan seznam ključnih besed. Članek lahko na primer znotraj teme `Nesreče in incidenti` uvrsti med prometne nesreče, delovne nesreče, tehnične okvare, eksplozije, reševanje ali nesreče v naravi. Če ni dovolj jasnega zadetka, dobi podtemo `Ostalo`.
 
-Odkrit je bil tudi bias v podatkih - pred letom 2021 je zajetih bistveno manj člankov v vsakem mesecu, kot kasneje. Kako to vpliva na naše rezultate ni jasno, saj profesor ni omenil če so bili pred letom 2022 zajeti le določeni članki, in po kakšnem kriteriju so prišli v izbor.
+V podatkih smo odkrili tudi pristranskost: pred letom 2021 je v vsakem mesecu zajetih bistveno manj člankov kot pozneje. Kako to vpliva na naše rezultate, ni jasno, saj ni znano, ali so bili pred letom 2022 zajeti le določeni članki in po kakšnem kriteriju so prišli v izbor.
 
 ## 3. Metode
 
@@ -47,13 +47,26 @@ Uporabljamo dva načina določanja podtem:
 
 Taksonomija je namenoma nadzorovana in razložljiva. Uporabnik lahko v aplikaciji podteme vključi ali izključi v nastavitvah. Ko izbere glavno temo, lahko dodatno filtrira podteme. Statistika v levem stolpcu pri pogledu vseh tem kaže deleže glavnih tem, pri izbrani temi pa jo nadomesti statistika pripadajočih podtem. Statistika se prilagodi trenutnemu časovnemu obdobju in obsegu pogleda: celotnemu svetu ali izbrani državi.
 
+### 3.2 Tok podatkov
+
+Obdelava podatkov poteka v štirih korakih:
+
+1. Izvorne MMC članke očistimo in normaliziramo, pri čemer ohranimo vsebinsko pomembna polja in metapodatke.
+2. Člankom pripnemo strukturirane oznake za glavno temo, podtemo, državo in kraj. Pri določanju lokacij v trenutni verziji uporabimo slovar krajev, uteženo točkovanje kandidatov in pravila.
+3. Rezultate združimo z metapodatki člankov in izvozimo v obliki JSON in GeoJSON.
+4. Spletna aplikacija podatke agregira glede na uporabnikove filtre in jih prikaže na interaktivnem zemljevidu, časovni vrstici ter v statističnem oknu.
+
+### 3.3 Interaktivna vizualizacija
+
+Aplikacija ponuja dva komplementarna pogleda. Heatmap agregira članke po državah in pokaže relativno intenzivnost poročanja, prikaz pik pa razkrije lokalno razporeditev člankov po krajih. Uporabnik lahko omeji časovno obdobje, izbere temo in podtemo ter države vključi ali izključi iz prikaza. Pri osredotočenju na posamezno državo se zemljevid, časovni števec in statistika prilagodijo samo njenim člankom. Če država ni izbrana, statistika opisuje trenutno filtriran pogled celotnega sveta.
+
 Opomba o odkrivanju znanja:
 
 - Večina odkritij iz podatkov izhaja iz raziskovanja agregiranih izhodov preko vizualizacij (zemljevidi, časovne vrstice, tabele s pogostostmi). Vizualizacije pomagajo hitro identificirati vzorce, anomalije ipd.
 
-## 4. Evalvacija LLM izhodov
+## 4. Evalvacija izhodov
 
-Za evalvacijo LLM izhodov smo uporabili ročno označeno eval množico (n = 90). Osredotočili smo se na tri metrične kazalnike: exact-match za `topic`, exact-match za `country` in exact-match za `city` (city vrednotimo neodvisno od pravilne države).
+Za evalvacijo izhodov smo uporabili ročno označeno eval množico (n = 90). Osredotočili smo se na tri metrične kazalnike: exact-match za `topic`, exact-match za `country` in exact-match za `city` (city vrednotimo neodvisno od pravilne države).
 
 ### 4.1 Verzija 1 (V1)
 
@@ -71,6 +84,7 @@ Za evalvacijo LLM izhodov smo uporabili ročno označeno eval množico (n = 90).
 
 - Za per class metrike nismo označili dovolj člankov, kajti imamo zelo veliko tem in bi bile vrednosti teh metrik nezanesljive.
 - Trenutna ročno označena evalvacijska množica ne vsebuje zlatega standarda za podteme. Natančnost oznak `subtopic` zato še ni vključena v navedene exact-match metrike. Pred uporabo podtem za strožje kvantitativne zaključke bi bilo treba pripraviti dodatno ročno označeno evalvacijsko množico.
+- Natančnost in pokritost sta ločena vidika kakovosti. Exact-match metrike merijo pravilnost oznak na evalvacijski množici, delež ohranjenih člankov pa pokaže, koliko arhiva je mogoče dejansko vključiti v vizualizacijo.
 
 ### Primerjava in interpretacija
 
@@ -123,6 +137,12 @@ _Slika 3: Tematski filter "gospodarstvo" – opazna redkost zunaj tradicionalnih
 Glavne teme so uporabne za pregled celotnega arhiva, vendar lahko združujejo med seboj precej različne dogodke. Podteme omogočajo dodatno raven raziskovanja brez branja vsakega posameznega članka. Ko uporabnik izbere glavno temo, se v statističnem oknu namesto deležev glavnih tem prikažejo deleži njenih podtem. Če nato izbere državo, se isti prikaz omeji samo na članke iz te države in izbranega časovnega obdobja.
 
 V načinu heatmap splošni pogled še vedno prikazuje intenzivnost poročanja po državah. Po kliku na državo se prikažejo tudi pike po mestih; kadar je izbrana glavna tema in je prikaz podtem vključen, barve teh pik predstavljajo posamezne podteme. Tako lahko na primer pri temi `Naravne nesreče` ločimo poplave od požarov ali potresov, pri temi `Nesreče in incidenti` pa prometne nesreče od delovnih nesreč in tehničnih okvar.
+
+### 5.5 Omejitve interpretacije
+
+Prikazane vrednosti so absolutna števila člankov in niso normalizirane glede na število prebivalcev države, celoten obseg objav v posameznem obdobju ali spremembe pri zajemu arhiva. Šibkejša pokritost regije zato ne pomeni nujno, da se je tam zgodilo manj dogodkov. Lahko odraža uredniški izbor, nepopoln arhiv ali napake pri določanju lokacije.
+
+Pri primerjavi obdobij je potrebna dodatna previdnost, ker je pred letom 2021 zajetih bistveno manj člankov. Tudi barvna lestvica heatmapa se prilagodi trenutno vidnim in filtriranim državam. Barve so zato najprimernejše za primerjavo držav znotraj istega aktivnega pogleda, ne pa za neposredno primerjavo ločenih posnetkov z različnimi filtri.
 
 ## 6. Refleksija
 
