@@ -29,11 +29,12 @@ Verzija 6 (trenutni pristop):
 Opomba o odkrivanju znanja:
 - Večina odkritij iz podatkov izhaja iz raziskovanja agregiranih izhodov preko vizualizacij (zemljevidi, časovne vrstice, tabele s pogostostmi). Vizualizacije pomagajo hitro identificirati vzorce, anomalije in prednostna področja za nadaljnjo analizo.
 
-### Evalvacija LLM izhodov
+## 4. Evalvacija LLM izhodov
 
-## Primeri odkrivanja znanj iz vizualizacij
+## 5. Primeri odkrivanja znanj iz vizualizacij
+- uporabi screenshote iz appa
 
-## Refleksija
+## 6. Refleksija
 
-## Zaključek
+## 7. Zaključek
 
