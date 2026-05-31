@@ -1,55 +1,39 @@
-# Kratka predstavitev projekta
 
-**Povzetek:** Kratek opis aplikacije in problema: ekstrakcija glavnega tematskega razreda ter lokacije (država/kraj) iz slovenskih MMC novic z uporabo LLM.
+# Poročilo 
 
-**1. Uvod**
-- Namen: avtomatska kategorizacija in geolokacija novičnih zapisov za analizo poročanja.
-- Kratek opis aplikacije (frontend + pipeline za obdelavo člankov in LLM ekstrakcijo).
+## Povzetek:
+Namen projekta je odkrivanje lokacije in tematske kategorije člankov MMC. Uporabljamo lokalno poganjano LLM storitev za ekstrakcijo strukturiranih oznak iz neurejenega besedila, rezultate pa primerjamo z ročno pripravljenim zlatim standardom (90 ročno označenih člankov). Cilj je ovrednotiti zanesljivost LLM pristopa pri kategorizaciji in geolokaciji ter identificirati pogoste napake in možnosti za izboljšave.
 
-**2. Podatki**
+## 1. Uvod
+- Namen: Odkrivanje pokritosti člankov po temah in lokaciji na mediju MMC. Analizirali bomo razporeditev tem in lokacij skozi čas in prikazali ugotovitve na interaktivnem zemljevidu, kar lahko pomaga pri uredniških odločitvah in nadaljnjih raziskavah.
+- Podatki: izhodišče so obdelani MMC zapisi v mapi `public/` in ročno preverjeni zlatni standard v `mmc_llm_vs_mmc_lean_v6_evaluation.xlsx` (lista `Tjas`, `Tristan`, `Luka`).
+- Metode: lokalnemu LLM modelu pošljemo novico z natančno oblikovanim promptom in ta vrne kombinacijo država-kraj in temo; dodatna orodja v repozitoriju združujejo, filtrirajo in pripevnajo LLM izhode.
+- Prispevek tega poročila: jasno predstaviti pipeline, opisati uporabljene tehnike in metrike ter podrobno analizirati rezultate in napake na testni množici.
+
+## 2. Podatki
 - Vir: obdelani MMC zapisi (mapa `assets/cleaned` / `public`), posebna eval množica obstaja (pot potrditi).
-- Zlate oznake: imamo za 90 člankov (uporabiti za eval).
-- Predobrdelava: rezanje besedila, združevanje polj (`title`, `lead`, `paragraphs`, `keywords`), omejitev dolžine vhodnega konteksta.
+- Zlate oznake: ročno pregledaih 90 naključih člankov - testna množica.
 
-**3. Metode**
-- Model: LLM klican preko lokalnega LM Studio (`gemma-4` v `extractor.ts`).
-- Prompting: sistemski in uporabniški prompt z navodili, nizka temperatura (`temperature=0.1`).
-- Odločitev: zakaj LLM in zakaj prompt (manj potrebe po ročnem označevanju, enotna ekstrakcija več polj).
+V podatkovnem sklopu zajemamo izvorne MMC članke, ki jih nato očistimo in normaliziramo — ohranimo le ključna polja in metapodatke, da zagotovimo relevantnost informacij ter zmanjšamo šum v kontekstu, saj morajo biti prečiščeni podatki nadalje analizirani z LLM modelom. Na očiščenih besedilih izvajamo avtomatsko ekstrakcijo strukturiranih oznak, kot so glavna tema, država in kraj. Hkrati pripravimo podatke za prikaz z izbranimi značilkami iz surovih podatkov ter jim pripnemo rezultate analize LLM modela. Natančnost ocenjevanja preverjamo na ročno pripravljeni evalvacijski množici, nato pa na podlagi agregiranih rezultatov pripravljamo vizualizacije in metrike za analizo poročanja skozi čas in po lokacijah. Takšen pristop zagotavlja reproducibilen potek od surovih podatkov do interpretabilnih vpogledov in uredniških zaključkov.
 
-**4. Eksperimenti in merjenje (evaluacija)**
-- Metrične meritve (predlagano):
-	- **Topic accuracy** (delež pravilno predvidenih tem)
-	- **Exact-match country** (pravilno prepoznana država)
-	- **Exact-match city** (pravilno prepoznan kraj)
-	- **Macro / micro F1** za večrazredno klasifikacijo (topic)
-	- **Confusion matrix** za topic
-	- **Čas izvršitve** (povprečno na članek)
-- Uporaba: izračunati na eval množici 90 zlatih oznak.
+Ker smo pri izbiri LLM modela naredili kompromis glede njegove zmogljivosti, smo izgubili del člankov. Pogosto se je namreč zgodilo, da je model ustvaril nesmiselne kombinacije država–kraj. Posledično takšni članki niso prejeli veljavnega odziva pri klicu API-ja za pretvorbo kombinacij država–kraj v geografske koordinate, zato so bili izločeni iz končnega nabora podatkov. Z uporabo zmogljivejšega LLM modela bi ohranili več člankov, saj bi bile kombinacije država–kraj natančnejše in semantično bolj smiselne.
 
-**5. Rezultati (osnutek sekcije)**
-- Kratek povzetek ključnih številk (accuracy, F1, exact-match).
-- Tabela z rezultati po kategorijah (če je smiselno).
-- Primeri: 3 primeri pravilnih ekstrakcij, 3 primeri napak (FP/FN) z razlago.
 
-**6. Analiza napak**
-- Razvrstitev pogostih napak (npr. nepravilna tema, napačna država, invented place).
-- Možni vzroki (nejasen kontekst, prekratki izvlečki, napake v promptu).
+## 3. Metode
+Verzija 1:
+- Prva izvedba projekta je vključevala uporabo LLM za ekstrakcijo (`topic`, `country`, `city`) iz očiščenih MMC zapisov, takoj za tem pa vizualizacijo rezultatov v aplikaciji. Rezultati so bili tudi ovrednoteni na testni množici (ročno označeni primeri) za osnovno merjenje natančnosti.
 
-**7. Razprava in omejitve**
-- Omejitve LLM (hallucination, občutljivost na prompt), omejitve eval množice (samo 90 primerov).
-- Etika in zanesljivost pri avtomatskem označevanju lokacij.
+Verzija 6 (trenutni pristop):
+- `todo TJAS`
 
-**8. Zaključek in nadaljnje delo**
-- Povzetek dosežkov.
-- Predlogi: izboljšave prompta, več označenih podatkov, post-processing (geokodiranje in validacija).
+Opomba o odkrivanju znanja:
+- Večina odkritij iz podatkov izhaja iz raziskovanja agregiranih izhodov preko vizualizacij (zemljevidi, časovne vrstice, tabele s pogostostmi). Vizualizacije pomagajo hitro identificirati vzorce, anomalije in prednostna področja za nadaljnjo analizo.
 
-**Priloge**
-- Navodila za reproduciranje: ukazi za `extractor.ts` in pot do output datotek.
-- Zaslonski posnetki aplikacije in konzole ter primeri input/output.
+### Evalvacija LLM izhodov
 
----
+## Primeri odkrivanja znanj iz vizualizacij
 
-Predlog za število slide-ov v PDF: 8 (Naslov, Uvod, Podatki, Metode, Evaluacija/Metode merjenja, Rezultati, Analiza napak, Zaključek + Kontakt)
+## Refleksija
 
-Prazna mesta/oznake za dopolnitev: `EVAL_DATASET_PATH`, `GOLD_LABELS_PATH`, glavne številke rezultatov (accuracy, F1, exact-match).
+## Zaključek
 
