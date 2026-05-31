@@ -64,37 +64,34 @@ Spodnji primeri prikazujejo, kako interaktivni zemljevid pretvori surov arhiv č
 
 ### 5.1 Globalna pokritost in lokalna natančnost
 
-Preklapljanje med načinoma prikaza razkrije dva komplementarna pogleda na iste podatke.
+Preklapljanje med načini prikaza razkrije dva komplementarna pogleda na iste podatke.
 
-- **Heatmap (Slika 1a)** takoj pokaže, katere države prevladujejo v arhivu: ZDA, večje evropske države in Rusija so intenzivneje obarvane.
-- **Način pik (Slika 1b)** razkrije, da znotraj teh držav poročanje ni enakomerno porazdeljeno: novice se kopičijo v določenih mestih, druge regije pa so prazne. Stranski panel ob zemljevidu omogoča takojšnji skok do konkretnih člankov iz izbrane lokacije.
+- Heatmap (slika 1a) takoj pokaže, katere države prevladujejo v arhivu: ZDA, večje evropske države in Rusija so intenzivneje obarvane.
+- Način pik (slika 1b) razkrije, da znotraj teh držav poročanje ni enakomerno porazdeljeno; novice se kopičijo v določenih mestih, druge regije pa ostajajo prazne.
 
-| Slika 1a | Slika 1b |
-|----------|----------|
+| Slika 1a                                  | Slika 1b                                                  |
+| ----------------------------------------- | --------------------------------------------------------- |
 | ![Heatmap](assets/images/01a-heatmap.png) | ![Pike s sidebari](assets/images/01b-dots-w-sidebars.png) |
 
 ### 5.2 Geografska ločitev iste tematske kategorije
 
-Ko izberemo filter **"vojna & konflikti"**, zemljevid ne pokaže ene razmazane lise, temveč jasno ločena žarišča.
+Ko izberemo filter "vojna & konflikti", zemljevid ne pokaže ene razmazane lise, temveč jasno ločena žarišča.
 
-- **Slika 2a** prikazuje gosto pokritost vzhodne Evrope in Ukrajine.
-- **Slika 2b** prikazuje intenzivno pokritost Bližnjega vzhoda.
+- Slika 2a prikazuje gosto pokritost vzhodne Evrope in Ukrajine.
+- Slika 2b prikazuje intenzivno pokritost Bližnjega vzhoda.
 
-Iz časovnega seznama bi težko v trenutku ugotovili, da isto tematsko oznako sestavljata dva povsem ločena geografska konflikta. Vizualizacija to razkrije brez branja posameznih člankov.
+Iz časovnega seznama bi težko takoj ugotovili, da isto tematsko oznako sestavljata dva povsem ločena geografska konflikta. Vizualizacija to razkrije brez branja posameznih člankov.
 
-| Slika 2a | Slika 2b |
-|----------|----------|
+| Slika 2a                                             | Slika 2b                                                |
+| ---------------------------------------------------- | ------------------------------------------------------- |
 | ![Vojna Ukrajina](assets/images/02a-war-ukraine.png) | ![Vojna Palestina](assets/images/02b-war-palestine.png) |
 
 ### 5.3 Odkrivanje uredniških praznin
 
-Aplikacija ni uporabna le za potrjevanje očitnega, temveč tudi za odkrivanje, česa ni.
-
-- Ob izbiri teme **"gospodarstvo" (Slika 3)** postane presenetljivo, kako redke so pike izven Evrope, Severne Amerike in vzhodne Azije. Veliki deli Afrike, Južne Amerike in Srednje Azije so skoraj prazni.
-- To sproži konkretno vprašanje: gre za resnično manjše število ekonomskih dogodkov v teh regijah, ali za uredniško pristranskost v izbiranju virov? Vizualizacija samega seznama tega ne bi razkrila.
+Aplikacija ni uporabna le za potrjevanje očitnega, temveč tudi za odkrivanje česa ni. Ob izbiri teme "gospodarstvo" (slika 3) postane presenetljivo, kako redke so pike zunaj Evrope, Severne Amerike in vzhodne Azije. Veliki deli Afrike, Južne Amerike in Srednje Azije so skoraj prazni. To zahteva vprašanje, ali se gre za resnično manjše število ekonomskih dogodkov v teh regijah ali za uredniško pristranskost pri izbiranju virov? Vizualizacija samega seznama tega ne bi razkrila.
 
 ![Ekonomija](assets/images/03-economy.png)  
-*Slika 3: Tematski filter "gospodarstvo" – opazna redkost zunaj tradicionalnih ekonomskih središč.*
+_Slika 3: Tematski filter "gospodarstvo" – opazna redkost zunaj tradicionalnih ekonomskih središč._
 
 ## 6. Refleksija
 
