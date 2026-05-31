@@ -2,19 +2,21 @@
 
 ## Povzetek:
 
-Namen projekta je odkrivanje lokacije in tematske kategorije člankov MMC. Uporabljamo lokalno poganjano LLM storitev za ekstrakcijo strukturiranih oznak iz neurejenega besedila, rezultate pa primerjamo z ročno pripravljenim zlatim standardom (90 ročno označenih člankov). Cilj je razumeti, kako je pozornost novic razširjena preko držav in časa. O čem MMC govori, in kako intenzivno?
+Namen projekta je odkrivanje lokacije in tematske kategorije člankov MMC. Uporabljamo lokalno poganjano LLM storitev za ekstrakcijo strukturiranih oznak iz neurejenega besedila, rezultate pa primerjamo z ročno pripravljenim zlatim standardom (90 ročno označenih člankov). Poleg glavnih tem smo uvedli tudi podteme, ki omogočajo podrobnejši vpogled v vsebinsko sestavo posamezne kategorije. Cilj je razumeti, kako je pozornost novic razširjena preko držav in časa. O čem MMC govori, kako intenzivno in iz katerih vsebinskih podskupin je posamezna tema sestavljena?
 
 ## 1. Uvod
 
-- Namen: Odkrivanje pokritosti člankov po temah in lokaciji na mediju MMC. Analizirali bomo razporeditev tem in lokacij skozi čas in prikazali ugotovitve na interaktivnem zemljevidu, kar lahko pomaga pri uredniških odločitvah in nadaljnjih raziskavah.
-- Metode: lokalnemu LLM modelu pošljemo novico z natančno oblikovanim promptom in ta vrne kombinacijo država-kraj in temo; dodatna orodja v repozitoriju združujejo, filtrirajo in pripevnajo LLM izhode.
+- Namen: Odkrivanje pokritosti člankov po temah, podtemah in lokaciji na mediju MMC. Analizirali bomo razporeditev tem in lokacij skozi čas in prikazali ugotovitve na interaktivnem zemljevidu, kar lahko pomaga pri uredniških odločitvah in nadaljnjih raziskavah.
+- Metode: lokalnemu LLM modelu pošljemo novico z natančno oblikovanim promptom in ta vrne kombinacijo država-kraj, temo in podtemo; dodatna orodja v repozitoriju združujejo, filtrirajo in pripenjajo LLM-izhode. Za starejše že obdelane zapise, ki še nimajo shranjene podteme, aplikacija uporabi nadzorovana pravila na podlagi naslova in uvoda članka.
 - Prispevek tega poročila: jasno predstaviti pipeline, opisati uporabljene tehnike in metrike ter podrobno analizirati rezultate in napake na testni množici.
 
 ## 2. Podatki
 
 - Vir: obdelani MMC zapisi (mapa `assets/cleaned` / `public`), posebna eval množica obstaja (pot potrditi).
 
-V podatkovnem sklopu zajemamo izvorne MMC članke, ki jih nato očistimo in normaliziramo — ohranimo le ključna polja in metapodatke, da zagotovimo relevantnost informacij ter zmanjšamo šum v kontekstu, saj morajo biti prečiščeni podatki nadalje analizirani z LLM modelom. Na očiščenih besedilih izvajamo avtomatsko ekstrakcijo strukturiranih oznak, kot so glavna tema, država in kraj. Hkrati pripravimo podatke za prikaz z izbranimi značilkami iz surovih podatkov ter jim pripnemo rezultate analize LLM modela. Natančnost ocenjevanja preverjamo na ročno pripravljeni evalvacijski množici, nato pa na podlagi agregiranih rezultatov pripravljamo vizualizacije in metrike za analizo poročanja skozi čas in po lokacijah. Takšen pristop zagotavlja reproducibilen potek od surovih podatkov do interpretabilnih vpogledov in uredniških zaključkov.
+V podatkovnem sklopu zajemamo izvorne MMC članke, ki jih nato očistimo in normaliziramo — ohranimo le ključna polja in metapodatke, da zagotovimo relevantnost informacij ter zmanjšamo šum v kontekstu, saj morajo biti prečiščeni podatki nadalje analizirani z LLM modelom. Na očiščenih besedilih izvajamo avtomatsko ekstrakcijo strukturiranih oznak, kot so glavna tema, podtema, država in kraj. Hkrati pripravimo podatke za prikaz z izbranimi značilkami iz surovih podatkov ter jim pripnemo rezultate analize LLM modela. Natančnost ocenjevanja preverjamo na ročno pripravljeni evalvacijski množici, nato pa na podlagi agregiranih rezultatov pripravljamo vizualizacije in metrike za analizo poročanja skozi čas in po lokacijah. Takšen pristop zagotavlja reproducibilen potek od surovih podatkov do interpretabilnih vpogledov in uredniških zaključkov.
+
+Javni podatkovni zapis članka je razširjen s poljem `llm-subtopic`. Ker že obdelani arhiv tega polja še ne vsebuje, je v aplikaciji dodan prehodni deterministični klasifikator. Ta normalizira naslov in uvod članka, nato pa znotraj že določene glavne teme preveri nadzorovan seznam ključnih besed. Članek lahko na primer znotraj teme `Nesreče in incidenti` uvrsti med prometne nesreče, delovne nesreče, tehnične okvare, eksplozije, reševanje ali nesreče v naravi. Če ni dovolj jasnega zadetka, dobi podtemo `Ostalo`.
 
 Odkrit je bil tudi bias v podatkih - pred letom 2021 je zajetih bistveno manj člankov v vsakem mesecu, kot kasneje. Kako to vpliva na naše rezultate ni jasno, saj profesor ni omenil če so bili pred letom 2022 zajeti le določeni članki, in po kakšnem kriteriju so prišli v izbor.
 
@@ -27,6 +29,17 @@ Verzija 1:
 Verzija 6 (trenutni pristop):
 
 - `todo TJAS`
+
+### 3.1 Razširitev s podtemami
+
+Za podrobnejšo analizo smo hierarhični podatkovni model razširili z oznako `subtopic`. Glavna tema ostaja širša kategorija članka, podtema pa opiše konkretnejši tip dogodka. Pri temi `Naravne nesreče` so podteme na primer poplave, požari, potresi, neurja, suše in plazovi. Pri temi `Nesreče in incidenti` ločujemo med prometnimi nesrečami, delovnimi nesrečami, tehničnimi okvarami, eksplozijami, reševanjem in nesrečami v naravi.
+
+Uporabljamo dva načina določanja podtem:
+
+1. Ekstraktor za nove članke od LLM-modela zahteva polje `subtopic`. Model mora izbrati natanko eno vrednost iz nadzorovanega seznama dovoljenih podtem in ne sme ustvarjati novih poljubnih oznak.
+2. Za obstoječi arhiv brez polja `llm-subtopic` aplikacija uporabi prehodni deterministični klasifikator. Ta preišče najprej naslov, nato še kombinacijo naslova in uvoda. Ključne besede preverja samo znotraj že izbrane glavne teme in samo na začetku besede, da zmanjša lažno pozitivne zadetke. Tak pristop na primer prepreči, da bi beseda `Gorišnica` zaradi podniza `gori` članek napačno uvrstila med požare.
+
+Taksonomija je namenoma nadzorovana in razložljiva. Uporabnik lahko v aplikaciji podteme vključi ali izključi v nastavitvah. Ko izbere glavno temo, lahko dodatno filtrira podteme. Statistika v levem stolpcu pri pogledu vseh tem kaže deleže glavnih tem, pri izbrani temi pa jo nadomesti statistika pripadajočih podtem. Statistika se prilagodi trenutnemu časovnemu obdobju in obsegu pogleda: celotnemu svetu ali izbrani državi.
 
 Opomba o odkrivanju znanja:
 
@@ -51,6 +64,7 @@ Za evalvacijo LLM izhodov smo uporabili ročno označeno eval množico (n = 90).
 ### Opombe
 
 - Za per class metrike nismo označili dovolj člankov, kajti imamo zelo veliko tem in bi bile vrednosti teh metrik nezanesljive.
+- Trenutna ročno označena evalvacijska množica ne vsebuje zlatega standarda za podteme. Natančnost oznak `subtopic` zato še ni vključena v navedene exact-match metrike. Pred uporabo podtem za strožje kvantitativne zaključke bi bilo treba pripraviti dodatno ročno označeno evalvacijsko množico.
 
 ### Primerjava in interpretacija
 
@@ -93,8 +107,15 @@ Aplikacija ni uporabna le za potrjevanje očitnega, temveč tudi za odkrivanje �
 ![Ekonomija](assets/images/03-economy.png)  
 _Slika 3: Tematski filter "gospodarstvo" – opazna redkost zunaj tradicionalnih ekonomskih središč._
 
+### 5.4 Podrobnejši vpogled s podtemami
+
+Glavne teme so uporabne za pregled celotnega arhiva, vendar lahko združujejo med seboj precej različne dogodke. Podteme omogočajo dodatno raven raziskovanja brez branja vsakega posameznega članka. Ko uporabnik izbere glavno temo, se v statističnem oknu namesto deležev glavnih tem prikažejo deleži njenih podtem. Če nato izbere državo, se isti prikaz omeji samo na članke iz te države in izbranega časovnega obdobja.
+
+V načinu heatmap splošni pogled še vedno prikazuje intenzivnost poročanja po državah. Po kliku na državo se prikažejo tudi pike po mestih; kadar je izbrana glavna tema in je prikaz podtem vključen, barve teh pik predstavljajo posamezne podteme. Tako lahko na primer pri temi `Naravne nesreče` ločimo poplave od požarov ali potresov, pri temi `Nesreče in incidenti` pa prometne nesreče od delovnih nesreč in tehničnih okvar.
+
 ## 6. Refleksija
 
 - LLM (verzija 1) je lahko vračal nesmiselne pare država-kraj, zato smo izgubili dokaj velik delež člankov (približno 50%).
 - Zato smo poskusili tudi z drugačnim pristopom (verzija 6). Ta metoda je izgubila le 15% člankov, a so podatki manj točni.
 - Za najboljše rezultate bi morali poganjati močnejši in dražji model, tako bi imeli več člankov in ohranili kvaliteto podatkov, ki jih model vrne.
+- Podteme trenutno izboljšujejo raziskovanje podatkov, vendar njihova kakovost še ni neposredno ovrednotena z ročno označenim zlatim standardom. Prehodni klasifikator je pregleden in omogoča hitro popravljanje pravil, vendar ne razume konteksta tako dobro kot zmogljivejši model. Smiselna nadaljnja izboljšava je ročno označiti vzorec podtem, izmeriti natančnost ter na podlagi napak dopolniti taksonomijo in prompt.
