@@ -1,4 +1,4 @@
-import { Pause, Play, RotateCcw } from "lucide-react";
+import { Eraser, Pause, Play, RotateCcw } from "lucide-react";
 import { Slider } from "@/components/ui/slider";
 
 interface TimelineSliderProps {
@@ -8,6 +8,7 @@ interface TimelineSliderProps {
   max: number;
   min: number;
   onPlayPause: () => void;
+  onResetAll: () => void;
   onRestart: () => void;
   onValueChange: (value: [number, number]) => void;
   startLabel: string;
@@ -26,6 +27,7 @@ export function TimelineSlider({
   isPlaying,
   onPlayPause,
   onRestart,
+  onResetAll,
   onValueChange,
 }: TimelineSliderProps) {
   return (
@@ -55,6 +57,15 @@ export function TimelineSlider({
             type="button"
           >
             <RotateCcw className="size-4" />
+          </button>
+          <button
+            aria-label="Ponastavi časovnico na celoten obseg"
+            className="inline-flex size-8 items-center justify-center rounded-md border bg-background text-foreground shadow-xs transition hover:bg-accent"
+            onClick={onResetAll}
+            title="Ponastavi časovnico na celoten obseg"
+            type="button"
+          >
+            <Eraser className="size-4" />
           </button>
           <span className="hidden sm:inline">
             {isPlaying ? "Predvajanje časovnice" : "Časovnica"}

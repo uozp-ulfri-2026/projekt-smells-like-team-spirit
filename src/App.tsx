@@ -791,6 +791,21 @@ export function MyMap() {
     setIsTimelinePlaying(false);
   }, [timelineBounds, timelineRange]);
 
+  const handleTimelineResetAll = useCallback(() => {
+    if (!timelineBounds) {
+      return;
+    }
+
+    const nextRange: [number, number] = [
+      timelineBounds.min,
+      timelineBounds.max,
+    ];
+
+    timelineRangeRef.current = nextRange;
+    setTimelineRange(nextRange);
+    setIsTimelinePlaying(false);
+  }, [timelineBounds]);
+
   const handleClearCountry = useCallback(() => {
     setSelectedCountry(null);
     setSelectedArticleId(null);
@@ -908,6 +923,7 @@ export function MyMap() {
             max={timelineBounds.max}
             min={timelineBounds.min}
             onPlayPause={handleTimelinePlayPause}
+            onResetAll={handleTimelineResetAll}
             onRestart={handleTimelineRestart}
             onValueChange={handleTimelineRangeChange}
             startLabel={formatTimelineDate(
