@@ -28,3 +28,4 @@ assets/*
 !assets/images/
 .env
 .env.*
+.vercel

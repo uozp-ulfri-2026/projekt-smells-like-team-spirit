@@ -92,6 +92,7 @@ export default function Explorator({
   articlesById,
   availableCountries,
   availableSubtopics,
+  availableTopics,
   selectedArticleId,
   selectedDotArticleIds,
   selectedTopic,
@@ -115,6 +116,7 @@ export default function Explorator({
   articlesById: Record<string, LeanArticle>;
   availableCountries: string[];
   availableSubtopics: SubtopicOption[];
+  availableTopics: string[];
   selectedArticleId: string | null;
   selectedDotArticleIds: string[];
   selectedTopic: string;
@@ -204,23 +206,15 @@ export default function Explorator({
       .filter((row): row is SearchRow => Boolean(row));
   }, [rowsById, selectedDotArticleIds]);
 
-  const topics = useMemo(
-    () =>
-      Array.from(new Set(rows.map((r) => r.topic))).sort((a, b) =>
-        a.localeCompare(b, "sl")
-      ),
-    [rows]
-  );
-
   const topicOptions = useMemo(() => {
-    const options = new Set(topics);
+    const options = new Set(availableTopics);
 
     if (selectedTopic !== "all") {
       options.add(selectedTopic);
     }
 
     return Array.from(options).sort((a, b) => a.localeCompare(b, "sl"));
-  }, [selectedTopic, topics]);
+  }, [availableTopics, selectedTopic]);
 
   const filteredRows = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();

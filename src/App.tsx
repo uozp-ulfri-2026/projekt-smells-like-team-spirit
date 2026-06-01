@@ -428,6 +428,29 @@ export function MyMap() {
       ).sort((a, b) => a.localeCompare(b, "en")),
     [baseGeoJson.features]
   );
+  const filterOptionArticleIds = useMemo(() => {
+    const ids = new Set<string>();
+
+    for (const feature of baseGeoJson.features) {
+      for (const id of feature.properties?.ids ?? []) {
+        ids.add(id);
+      }
+    }
+
+    return ids;
+  }, [baseGeoJson.features]);
+  const availableTopics = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          Array.from(
+            filterOptionArticleIds,
+            (id) => articlesById[id]?.["llm-topic"] || "Brez teme"
+          )
+        )
+      ).sort((a, b) => a.localeCompare(b, "sl")),
+    [articlesById, filterOptionArticleIds]
+  );
 
   useEffect(() => {
     timelineRangeRef.current = timelineRange;
@@ -605,19 +628,15 @@ export function MyMap() {
       return [];
     }
 
-    const seenIds = new Set<string>();
     const counts = new Map<string, number>();
 
-    for (const feature of filteredGeoJson.features) {
-      for (const id of feature.properties?.ids ?? []) {
-        if (seenIds.has(id) || !articleMatchesSelectedTopic(id)) {
-          continue;
-        }
-
-        seenIds.add(id);
-        const subtopic = articlesById[id]?.["llm-subtopic"] || DEFAULT_SUBTOPIC;
-        counts.set(subtopic, (counts.get(subtopic) ?? 0) + 1);
+    for (const id of filterOptionArticleIds) {
+      if (!articleMatchesSelectedTopic(id)) {
+        continue;
       }
+
+      const subtopic = articlesById[id]?.["llm-subtopic"] || DEFAULT_SUBTOPIC;
+      counts.set(subtopic, (counts.get(subtopic) ?? 0) + 1);
     }
 
     return Array.from(counts, ([subtopic, count]) => ({
@@ -631,7 +650,7 @@ export function MyMap() {
   }, [
     articleMatchesSelectedTopic,
     articlesById,
-    filteredGeoJson.features,
+    filterOptionArticleIds,
     selectedTopic,
   ]);
 
@@ -948,6 +967,7 @@ export function MyMap() {
         articlesById={articlesById}
         availableCountries={availableCountries}
         availableSubtopics={availableSubtopics}
+        availableTopics={availableTopics}
         country={selectedCountry}
         countryFilterMode={countryFilterMode}
         geoJson={filteredGeoJson}
