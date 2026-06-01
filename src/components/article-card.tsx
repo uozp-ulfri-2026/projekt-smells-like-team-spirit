@@ -13,12 +13,12 @@ import { getTopicStyle } from "@/lib/topic-colors";
 
 export default function ArticleCard({
   id,
-  articlePath = "/mmc-lean.v6.json",
+  articlePath,
   onClose,
   showSubtopics = true,
 }: {
   id: string | null;
-  articlePath?: string;
+  articlePath: string;
   onClose?: () => void;
   showSubtopics?: boolean;
 }) {

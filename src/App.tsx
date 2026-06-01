@@ -55,12 +55,16 @@ const DATASETS: Record<
   { articlePath: string; geoJsonPath: string }
 > = {
   v2: {
-    articlePath: "/mmc-lean.v6.json",
-    geoJsonPath: "/output.v6.geojson",
+    articlePath:
+      "https://f003.backblazeb2.com/file/slovenski-svet/mmc-lean.v6.json",
+    geoJsonPath:
+      "https://f003.backblazeb2.com/file/slovenski-svet/output.v6.geojson",
   },
   old: {
-    articlePath: "/mmc-lean.old.json",
-    geoJsonPath: "/output.old.geojson",
+    articlePath:
+      "https://f003.backblazeb2.com/file/slovenski-svet/mmc-lean.old.json",
+    geoJsonPath:
+      "https://f003.backblazeb2.com/file/slovenski-svet/output.old.geojson",
   },
 };
 
@@ -709,6 +713,7 @@ export function MyMap() {
     selectedTopic,
   ]);
 
+  // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: it's slop anyway
   const timelineArticleCount = useMemo(() => {
     if (!(baseGeoJson && timelineRange && timelineBounds)) {
       return 0;

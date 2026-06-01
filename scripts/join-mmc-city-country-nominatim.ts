@@ -113,6 +113,10 @@ async function main() {
 
   const joined = [...seen.values()].sort(sortEntries);
 
+  if (!outputFile) {
+    throw new Error("Output file path is required.");
+  }
+
   await writeFile(outputFile, `${JSON.stringify(joined, null, 2)}\n`, "utf8");
 
   console.log(`Read ${resolvedInputFiles.length} files.`);
